@@ -1,0 +1,6 @@
+voxcpm>=2.0.0
+torch>=2.0.0
+# 模型自动选择（VoxCPM2 / VoxCPM-0.5B）：
+#   --model-size auto  → 内存≥5GB 用 VoxCPM2，否则 VoxCPM-0.5B
+#   --model-size full  → 强制 VoxCPM2
+#   --model-size lite  → 强制 VoxCPM-0.5B
