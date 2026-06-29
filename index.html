@@ -435,7 +435,22 @@ genDualBtn.addEventListener('click',async function(){
     if(state.model==='VoxCPM-0.5B'){
       var res=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:scriptBox.value,voice_desc:''})});
     }else{
-      var res=await fetch('/generate_dual_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script:scriptBox.value,voice_a:va,voice_b:vb})});
+      var fileA=refAudioA.files&&refAudioA.files[0];
+      var fileB=refAudioB.files&&refAudioB.files[0];
+      var res;
+      if(fileA||fileB){
+        // 有参考音频：用 multipart 上传，后端对该主播每段都以此音频为参考克隆
+        var fd=new FormData();
+        fd.append('script',scriptBox.value);
+        fd.append('voice_a',va);fd.append('voice_b',vb);
+        fd.append('text_a',refTextA.value.trim());fd.append('text_b',refTextB.value.trim());
+        if(fileA)fd.append('ref_a',fileA,fileA.name);
+        if(fileB)fd.append('ref_b',fileB,fileB.name);
+        res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
+      }else{
+        // 无参考音频：默认音色，走 JSON
+        res=await fetch('/generate_dual_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script:scriptBox.value,voice_a:va,voice_b:vb})});
+      }
     }
     if(!res.ok){var ed;try{ed=await res.json()}catch(e){}throw new Error(ed?.error||'合成失败')}
     var blob=await res.blob();var url=URL.createObjectURL(blob);
@@ -482,7 +497,7 @@ function esc(str){var d=document.createElement('div');d.textContent=str;return d
       }else{
         voiceSectionLabel.textContent='🎙️ 主播音色设置';
         voiceSection.style.display='block';
-        voiceInputs.style.display='block';fileInputs.style.display='none';
+        voiceInputs.style.display='block';fileInputs.style.display='block';
       }
     }).catch(function(){});
   };

@@ -28,6 +28,7 @@ from pathlib import Path
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 os.environ.setdefault("HF_HUB_DISABLE_SSL_VERIFICATION", "1")
 os.environ.setdefault("TORCH_DYNAMO_DISABLE", "1")
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")  # MPS 未实现算子回退 CPU，避免崩溃
 
 PORT = 8080
 MODEL_CACHE_DIR = None
@@ -42,6 +43,17 @@ _model_loading = False
 _model_error = ""
 _model_progress = ""
 _model_ready = threading.Event()
+
+# ── 参考音频配置 ──
+_BASE_DIR = Path(__file__).parent
+REF_AUDIO_A = _BASE_DIR / "example._womanmp3.mp3"  # Host A 女声参考
+REF_AUDIO_B = _BASE_DIR / "example_man.mp3"        # Host B 男声参考
+# 可选：参考音频对应的文字稿（若模型 generate 支持 prompt/参考文本，可提升克隆质量；留空则不传）
+REF_TEXT_A = ""
+REF_TEXT_B = ""
+OUTPUT_DIR = _BASE_DIR / "outputs"
+
+_ref_wav_cache = {}  # 源音频路径 -> 转换后的 wav 临时路径
 
 
 def get_available_ram_gb() -> float:
@@ -68,8 +80,16 @@ def get_available_ram_gb() -> float:
     try:
         if sys.platform == "darwin":
             import subprocess
-            out = subprocess.check_output(["sysctl", "-n", "hw.memsize"])
-            return int(out.strip()) / 1024 ** 3
+            out = subprocess.check_output(["vm_stat"]).decode()
+            page = 4096
+            mp = re.search(r"page size of (\d+)", out)
+            if mp: page = int(mp.group(1))
+            def _pages(name):
+                m = re.search(rf"{name}:\s+(\d+)\.", out)
+                return int(m.group(1)) if m else 0
+            # 可立即使用 ≈ 空闲 + 不活跃 + 预测缓存
+            free_pages = _pages("Pages free") + _pages("Pages inactive") + _pages("Pages speculative")
+            return free_pages * page / 1024 ** 3
     except:
         pass
     try:
@@ -86,10 +106,23 @@ def get_available_ram_gb() -> float:
 def _load_model_background():
     global _model, _model_loading, _model_error, _model_progress, ACTIVE_MODEL_ID, MODEL_LABEL
     try:
+        # 设备保持 auto（cuda→mps→cpu），不显式指定。
+        # 仅当实际会落到 MPS 时强制 float32，规避低精度杂音；CUDA / CPU 不受影响。
+        use_mps = False
+        try:
+            import torch
+            use_mps = (not FORCE_CPU) and (not torch.cuda.is_available()) \
+                      and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available()
+        except Exception:
+            pass
+        if use_mps:
+            os.environ["VOXCPM_MPS_DTYPE"] = "float32"
+            os.environ.setdefault("VOXCPM_FORCE_EAGER_ATTENTION", "1")
+            print("  ⚙ 检测到 MPS：强制 float32")
         from voxcpm import VoxCPM
         kwargs = dict(hf_model_id=ACTIVE_MODEL_ID, load_denoiser=False, optimize=False)
         if MODEL_CACHE_DIR: kwargs["cache_dir"] = MODEL_CACHE_DIR
-        if FORCE_CPU: kwargs["device"] = "cpu"
+        if FORCE_CPU: kwargs["device"] = "cpu"  # 否则保持 auto
         _model_progress = f"正在加载 {MODEL_LABEL}..."
         print(f"\n  ⏳ {_model_progress}")
         _model = VoxCPM.from_pretrained(**kwargs)
@@ -99,6 +132,15 @@ def _load_model_background():
             elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available(): dev_str = "MPS (Apple Silicon)"
             else: dev_str = "CPU"
         except: dev_str = "?"
+        # 预热一次：把首次 Metal/内核编译开销挪到启动期，避免落在用户第一个请求上
+        try:
+            import torch
+            warm = _supported_gen_kwargs(_model, dict(TTS_GEN_KWARGS, max_len=64))
+            with torch.inference_mode():
+                _model.generate(text="预热。", **warm)
+            print("  ✓ 预热完成")
+        except Exception as e:
+            print(f"  ⚠ 预热跳过: {e}")
         _model_progress = f"{MODEL_LABEL} 加载完成 ✓  推理设备: {dev_str}"
         print(f"  ✓ {MODEL_LABEL} 加载完成  推理设备: {dev_str}")
     except Exception as e:
@@ -227,10 +269,66 @@ def generate_summary_with_llm(article, api_key):
 TTS_CFG=1.5; TTS_STEPS=4; TTS_MAX_LEN=1024; TTS_MIN_LEN=1; TTS_RETRY=False
 TTS_GEN_KWARGS = dict(cfg_value=TTS_CFG, inference_timesteps=TTS_STEPS, min_len=TTS_MIN_LEN, max_len=TTS_MAX_LEN, retry_badcase=TTS_RETRY)
 
+def _ensure_ref_wav(src_path, sample_rate):
+    """把参考音频（mp3/其他）转成模型采样率的单声道 wav，返回临时 wav 路径；失败返回 None。"""
+    src_path = str(src_path)
+    cached = _ref_wav_cache.get(src_path)
+    if cached and os.path.exists(cached):
+        return cached
+    if not os.path.exists(src_path):
+        print(f"  ⚠ 参考音频不存在: {src_path}")
+        return None
+    try:
+        import librosa, numpy as np
+        y, _ = librosa.load(src_path, sr=sample_rate, mono=True)
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False); tmp.close()
+        with wave.open(tmp.name, "wb") as wf:
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sample_rate)
+            wf.writeframes((np.clip(y, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+        _ref_wav_cache[src_path] = tmp.name
+        print(f"  ✓ 参考音频就绪: {os.path.basename(src_path)}")
+        return tmp.name
+    except Exception as e:
+        print(f"  ⚠ 参考音频转换失败 {src_path}: {e}")
+        return None
+
+
+def _supported_gen_kwargs(model, candidate):
+    """只保留 model.generate 真正接受的参数，避免传入不支持的关键字导致报错。"""
+    try:
+        import inspect
+        params = inspect.signature(model.generate).parameters
+        if any(p.kind == p.VAR_KEYWORD for p in params.values()):
+            return dict(candidate)
+        return {k: v for k, v in candidate.items() if k in params}
+    except Exception:
+        return dict(candidate)
+
+
+def _save_output_wav(w, prefix):
+    """把生成的 wav 字节先落盘到 outputs/，返回路径；失败不影响主流程。"""
+    try:
+        import time
+        OUTPUT_DIR.mkdir(exist_ok=True)
+        path = OUTPUT_DIR / f"{prefix}_{time.strftime('%Y%m%d_%H%M%S')}.wav"
+        path.write_bytes(w)
+        print(f"  💾 已保存: {path}")
+        return str(path)
+    except Exception as e:
+        print(f"  ⚠ 落盘失败: {e}")
+        return None
+
+
 def _tts_gen(model, text, **kw):
     import torch, numpy
+    kw = _supported_gen_kwargs(model, kw)
     with torch.inference_mode(): audio = model.generate(text=text, **kw)
     gc.collect()
+    try:
+        if hasattr(torch, "mps") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()  # MPS 缓存不易释放，长脚本逐段清理防显存堆积
+    except Exception:
+        pass
     if hasattr(audio,'numpy'): audio=audio.numpy()
     if hasattr(audio,'reshape'): audio=audio.reshape(-1)
     # 简单低通滤波，抑制高频啸声
@@ -256,65 +354,101 @@ def _segments(script):
         elif segs: segs[-1]["text"]+="。"+line
     return segs
 
+def _split_long_text(text, max_chars=150):
+    """把长文本按中英文标点切成不超过 max_chars 的小块。
+    降低 MPS 长句风险（如 'Output channels > 65536' 报错）并提升稳定性。"""
+    text=(text or "").strip()
+    if not text: return []
+    if len(text)<=max_chars: return [text]
+    parts=re.split(r'(?<=[。！？!?；;\.\n])', text)
+    chunks, cur=[], ""
+    def _hardcut(s):
+        out=[]
+        while len(s)>max_chars: out.append(s[:max_chars]); s=s[max_chars:]
+        if s: out.append(s)
+        return out
+    for p in parts:
+        p=p.strip()
+        if not p: continue
+        if len(cur)+len(p)<=max_chars:
+            cur+=p; continue
+        if cur: chunks.append(cur); cur=""
+        if len(p)<=max_chars:
+            cur=p; continue
+        # 单句仍超长：按逗号再切，最后兜底硬切
+        for x in re.split(r'(?<=[，,、])', p):
+            x=x.strip()
+            if not x: continue
+            if len(cur)+len(x)<=max_chars: cur+=x
+            else:
+                if cur: chunks.append(cur); cur=""
+                seg=_hardcut(x)
+                cur=seg.pop() if seg else ""
+                chunks.extend(seg)
+    if cur: chunks.append(cur)
+    return chunks
+
 def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="", text_b=""):
-    """双人 TTS
-    VoxCPM2: 逐段生成，第2段起以第1段为参考音频
-    VoxCPM-0.5B: 逐段生成，每段用上传的参考音频零样本克隆音色
+    """双人 TTS：Host A / Host B 各用一份参考音频锚定音色。
+    - VoxCPM2(full): 用户为某主播上传参考音频时，该主播每一段都以此音频为参考克隆；
+      未上传则该主播使用模型默认音色。
+    - VoxCPM-0.5B(lite): 不支持参考音频，使用默认音色。
     """
-    model,err=wait_for_model()
+    model, err = wait_for_model()
     if err: raise RuntimeError(err)
-    segs=_segments(script)
+    segs = _segments(script)
     if not segs: raise RuntimeError("脚本格式错误")
-    import torch; sr=int(model.tts_model.sample_rate); full_audio=[]; tmp_files=[]
-    ref_wavs={"A":None,"B":None}; total=len(segs)
+    import torch, numpy as np
+    sr = int(model.tts_model.sample_rate)
+    full_audio = []
 
-    for idx, s in enumerate(segs, 1):
-        sp,t=s["speaker"],s["text"]
-        if not t: continue
-        k=dict(TTS_GEN_KWARGS)
-        print(f"  [{idx}/{total}] Host {sp}...")
+    # 每个主播的参考音频：仅使用用户上传的音频；未上传则该主播使用默认音色。
+    # 上传文件先归一化到模型采样率的单声道 wav（_ensure_ref_wav 兼容 mp3/wav 等）。
+    ref_for = {"A": None, "B": None}
+    ref_text = {"A": (text_a or "").strip(), "B": (text_b or "").strip()}
+    if MODEL_SIZE == "full":
+        if ref_a: ref_for["A"] = _ensure_ref_wav(ref_a, sr)
+        if ref_b: ref_for["B"] = _ensure_ref_wav(ref_b, sr)
+    elif ref_a or ref_b:
+        print("  ⚠ 0.5B 不支持参考音频，使用默认音色")
 
-        if MODEL_SIZE=="full":
-            user_ref = ref_a if sp=="A" else ref_b
-            k["reference_wav_path"] = user_ref or ref_wavs[sp] or None
-        elif (sp=="A" and ref_a) or (sp=="B" and ref_b):
-            print(f"  ⚠ 0.5B 不支持参考音频，使用默认音色")
-
-        audio = _tts_gen(model, t, **k)
-        full_audio.append(audio)
-
-        # VoxCPM2: 保存首段作为后续参考
-        if MODEL_SIZE=="full":
-            if not ref_wavs[sp]:
-                tmp=tempfile.NamedTemporaryFile(suffix=".wav",delete=False); tmp.close()
-                with wave.open(tmp.name,"wb") as wf:
-                    wf.setnchannels(1);wf.setsampwidth(2);wf.setframerate(sr)
-                    wf.writeframes((audio*32767).astype("int16").tobytes())
-                ref_wavs[sp]=tmp.name; tmp_files.append(tmp.name)
-
-    gc.collect()
-    import numpy as np
-    combined=np.concatenate(full_audio) if len(full_audio)>1 else full_audio[0]
-    wav=_wav_encode(combined,sr)
-    for f in tmp_files:
-        try: os.unlink(f)
-        except: pass
-    return wav
+    total = len(segs)
+    try:
+        for idx, s in enumerate(segs, 1):
+            sp, t = s["speaker"], s["text"]
+            if not t: continue
+            k = dict(TTS_GEN_KWARGS)
+            ref = ref_for.get(sp)
+            if ref:
+                # 存在参考音频：每一段都以该参考音频为参考生成
+                k["reference_wav_path"] = ref
+                if ref_text.get(sp):
+                    # 提供文本时启用高保真克隆（reference + prompt 必须成对，否则 generate 报错）
+                    k["prompt_wav_path"] = ref
+                    k["prompt_text"] = ref_text[sp]
+            print(f"  [{idx}/{total}] Host {sp}  参考音频={'是' if ref else '默认音色'}")
+            for ci, chunk in enumerate(_split_long_text(t), 1):
+                audio = _tts_gen(model, chunk, **k)
+                full_audio.append(audio)
+        if not full_audio: raise RuntimeError("没有可合成的内容")
+        combined = np.concatenate(full_audio) if len(full_audio) > 1 else full_audio[0]
+        return _wav_encode(combined, sr)
+    finally:
+        gc.collect()
 
 
 def _wav_encode(samples, sr):
-    if hasattr(samples,'numpy'): samples=samples.numpy()
-    if hasattr(samples,'tolist'): samples=samples.tolist()
-    if hasattr(samples,'reshape'): samples=samples.reshape(-1)
-    n=len(samples); buf=bytearray(44+n*2)
-    def w16(o,v): struct.pack_into("<h",buf,o,int(v))
-    def w32(o,v): struct.pack_into("<I",buf,o,v)
-    buf[0:4]=b"RIFF"; w32(4,36+n*2); buf[8:12]=b"WAVE"; buf[12:16]=b"fmt "; w32(16,16)
-    w16(20,1); w16(22,1); w32(24,sr); w32(28,sr*2); w16(32,2); w16(34,16)
-    buf[36:40]=b"data"; w32(40,n*2)
-    for i in range(n):
-        v=max(-1.0,min(1.0,float(samples[i])))*32767.0; w16(44+i*2,int(v))
-    return bytes(buf)
+    import numpy as np
+    a = samples
+    if hasattr(a, 'numpy'): a = a.numpy()
+    a = np.asarray(a, dtype=np.float32).reshape(-1)
+    a = np.clip(a, -1.0, 1.0)
+    pcm = (a * 32767.0).astype('<i2').tobytes()
+    n = len(a)
+    header = struct.pack("<4sI4s4sIHHIIHH4sI",
+                         b"RIFF", 36 + n * 2, b"WAVE", b"fmt ", 16, 1, 1,
+                         sr, sr * 2, 2, 16, b"data", n * 2)
+    return header + pcm
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -322,7 +456,10 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin","*")
         self.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS")
         self.send_header("Access-Control-Allow-Headers","Content-Type")
-        super().end_headers()
+        try:
+            super().end_headers()
+        except (BrokenPipeError, ConnectionResetError):
+            pass
     def do_OPTIONS(self): self.send_response(204); self.end_headers()
 
     def do_GET(self):
@@ -418,7 +555,10 @@ class AppHandler(SimpleHTTPRequestHandler):
             except RuntimeError as e: self._json_error(str(e),500); return
             finally:
                 for p in ref_paths:
-                    if p: os.unlink(p)
+                    if p:
+                        try: os.unlink(p)
+                        except: pass
+            _save_output_wav(w, "podcast_dual")
             self._send_wav(w,"podcast_dual.wav")
         else:
             # JSON 模式
@@ -429,13 +569,17 @@ class AppHandler(SimpleHTTPRequestHandler):
             try:
                 w=generate_dual_tts(script,va,vb)
             except RuntimeError as e: self._json_error(str(e),500); return
+            _save_output_wav(w, "podcast_dual")
             self._send_wav(w,"podcast_dual.wav")
 
     def _send_wav(self,w,fn="podcast.wav"):
-        self.send_response(200); self.send_header("Content-Type","audio/wav")
-        self.send_header("Content-Length",str(len(w)))
-        self.send_header("Content-Disposition",f'attachment; filename="{fn}"')
-        self.end_headers(); self.wfile.write(w)
+        try:
+            self.send_response(200); self.send_header("Content-Type","audio/wav")
+            self.send_header("Content-Length",str(len(w)))
+            self.send_header("Content-Disposition",f'attachment; filename="{fn}"')
+            self.end_headers(); self.wfile.write(w)
+        except (BrokenPipeError, ConnectionResetError):
+            print("  ⚠ 客户端已断开，音频已生成并保存到 outputs 目录，本次未能回传")
 
     def _json_error(self,msg,st=400):
         b=json.dumps({"error":msg},ensure_ascii=False).encode("utf-8")
@@ -476,7 +620,12 @@ def main():
     else: ACTIVE_MODEL_ID="openbmb/VoxCPM-0.5B"; MODEL_LABEL="VoxCPM-0.5B"; print("  ✓ 模型: VoxCPM-0.5B")
     try: import voxcpm; print(f"  ✓ voxcpm {getattr(voxcpm,'__version__','?')}")
     except ImportError: print("  ❌ pip install voxcpm"); sys.exit(1)
-    try: import torch; print(f"  ✓ PyTorch {torch.__version__} {'CPU' if not torch.cuda.is_available() else 'CUDA'}")
+    try:
+        import torch
+        if torch.cuda.is_available(): _dev="CUDA"
+        elif hasattr(torch.backends,'mps') and torch.backends.mps.is_available(): _dev="MPS"
+        else: _dev="CPU"
+        print(f"  ✓ PyTorch {torch.__version__} {_dev}")
     except ImportError: print("  ❌ pip install torch"); sys.exit(1)
     if not MODEL_CACHE_DIR: print(f"  ✓ 模型缓存: {Path.home()/'.cache'/'huggingface'/'hub'}")
     print(f"  ⏳ 后台加载 {MODEL_LABEL} 模型..."); start_model_loading()
