@@ -398,7 +398,6 @@ genScriptBtn.addEventListener('click',async function(){
   }
   var hasAi=!!state.apiKeys.deepseek;
   genScriptBtn.textContent=hasAi?'AI 生成中...':'生成中...';
-  genScriptBtn.textContent=hasAi?'AI 生成中...':'生成中...';
   if(hasAi)setStatus('🤖 正在调用 DeepSeek 总结新闻并生成对话...','info');
   try{
     var res=await fetch('/generate_script_v2',{

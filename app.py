@@ -46,11 +46,6 @@ _model_ready = threading.Event()
 
 # ── 参考音频配置 ──
 _BASE_DIR = Path(__file__).parent
-REF_AUDIO_A = _BASE_DIR / "example._womanmp3.mp3"  # Host A 女声参考
-REF_AUDIO_B = _BASE_DIR / "example_man.mp3"        # Host B 男声参考
-# 可选：参考音频对应的文字稿（若模型 generate 支持 prompt/参考文本，可提升克隆质量；留空则不传）
-REF_TEXT_A = ""
-REF_TEXT_B = ""
 OUTPUT_DIR = _BASE_DIR / "outputs"
 
 _ref_wav_cache = {}  # 源音频路径 -> 转换后的 wav 临时路径
@@ -206,22 +201,121 @@ def generate_script(article):
         f"[Host A] {random.choice(_OUTRO_A)}",
         f"[Host B] {random.choice(_OUTRO_B)}",
     ]
-    return "\n".join(lines)
+    return normalize_for_tts("\n".join(lines))
 
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
+# ── VoxCPM 文本规范（依据 VoxCPM 2 官方 cookbook「最佳实践」提炼）──
+# 作为 system prompt 注入 DeepSeek，让其直接产出「适合 VoxCPM 朗读」的文本。
+# 这份规则是固定常量，每次调用只带这一份精炼文本，不让模型去“读链接”，
+# 既避免联网依赖，也避免重复传入整篇文档。
+# 核心依据（cookbook 原文要点）：
+#   - 直接用干净的目标语言正文，通常不必加语言标签；
+#   - 想要方言就用地道方言书写（如粤语/四川话），不要用普通话硬套；
+#   - 可插入英文方括号「非语言标签」让语音更生动（如 [laughing]/[sigh]/[Uhm]），
+#     全小写更稳定，一句话别叠太多。
+VOXCPM_TTS_GUIDE = (
+    "你撰写的文本将直接交给 VoxCPM 2 语音合成模型朗读。请遵循官方最佳实践：\n"
+    "1. 写干净、自然的口语正文：像真人聊天那样，多用「对」「确实」「我觉得」「你看」"
+    "这类口语词，句子短一些、一句一个意思，读起来更顺。\n"
+    "   适当多用语气助词让语气更自然亲切，例如句末的「啊」「呢」「吧」「嘛」「呀」「哦」「啦」，"
+    "以及「嗯」「诶」「哎」等口头语，但别每句都堆、避免生硬。\n"
+    "2. 可适度使用「非语言标签」让语气更生动（点到为止，一句最多一个，全小写）：\n"
+    "   - [laughing] 笑、[sigh] 叹气、[Uhm] 迟疑停顿、[Shh] 安静\n"
+    "   - [Question-ah]/[Question-en] 疑问、[Surprise-wa] 惊讶\n"
+    "   例如：「这个数据是真的吗 [Question-ah]」「确实没想到 [Surprise-wa]」。\n"
+    "3. 不要输出 Markdown 标记（井号、星号、反引号等）、表情符号 emoji、网址链接。\n"
+    "4. 不要保留新闻里的「编者按」「来源」「作者」「点击查看」「[+123 chars]」等导语残留。\n"
+    "5. 较大的数字和英文缩写尽量按口语写，便于朗读：例如「2025年」可写「二零二五年」，"
+    "「3.5%」可写「百分之三点五」；中英文之间留一个空格。\n"
+    "6. 只输出朗读文本本身，不要任何解释、标题或额外说明。"
+)
+
+DUAL_SCRIPT_SYSTEM = (
+    "你是一位专业的中文播客文案撰写专家。请根据用户提供的新闻，生成一段两位主播的"
+    "自然对话文案。\n\n"
+    "结构要求：\n"
+    "- 每行以 [Host A] 或 [Host B] 开头，两者交替发言。\n"
+    "- 包含：开场寒暄与话题引入 → 围绕新闻重点的来回讨论（提问、回应、补充、追问）→ 收束总结与道别。\n"
+    "- 两人观点要有互动感，不是各说各话。\n"
+    "- 注意：[Host A]/[Host B] 是说话人标记，与下文提到的「非语言标签」是两回事，都要保留。\n\n"
+    + VOXCPM_TTS_GUIDE
+)
+
+SUMMARY_SYSTEM = (
+    "你是一位新闻播报文案撰写专家。请把用户提供的新闻总结成一段适合单人语音播报的"
+    "核心要点，二百字以内，简洁清晰、重点突出。\n\n"
+    + VOXCPM_TTS_GUIDE
+)
+
+
+# ── TTS 文本兜底清理 ──
+_EMOJI_RE = re.compile(
+    "[" "\U0001F300-\U0001FAFF" "\U00002600-\U000027BF"
+    "\U0001F000-\U0001F0FF" "\U00002190-\U000021FF" "\U00002B00-\U00002BFF" "️" "]",
+    flags=re.UNICODE,
+)
+
+def normalize_for_tts(text):
+    """对最终要朗读的文本做保守清理，降低 VoxCPM 合成异常（杂音/乱读）的概率。
+    对所有生成路径（模板 + LLM）统一兜底，保留 [Host A]/[Host B] 行首标记。
+    刻意保守：不做激进改写，避免破坏语义或对话结构。"""
+    if not text:
+        return text
+    out_lines = []
+    for line in text.split("\n"):
+        m = re.match(r'^(\[Host\s*[AB]\]\s*)(.*)$', line)
+        prefix, body = (m.group(1), m.group(2)) if m else ("", line)
+        # 去 Markdown 残留标记
+        body = re.sub(r'[*#`>_~]', '', body)
+        # 去网址
+        body = re.sub(r'https?://\S+', '', body)
+        # 去表情符号
+        body = _EMOJI_RE.sub('', body)
+        # 圆括号 / 【】 及其内容（多为旁注，朗读时是噪声）
+        body = re.sub(r'[（(【][^）)】]*[）)】]', '', body)
+        # 方括号 [..]：保留 cookbook 推荐的英文「非语言标签」（如 [laughing]/[Question-ah]），
+        # 仅删除含中文的方括号注释（如 [来源：路透社]）和 [+123 chars] 残留
+        body = re.sub(r'\[[^\]]*[一-鿿][^\]]*\]', '', body)
+        body = re.sub(r'\[\+?\d[^\]]*\]', '', body)
+        # 省略号 / 破折号 → 逗号（保留停顿但去掉模型易卡的符号）
+        body = body.replace('……', '，').replace('…', '，')
+        body = re.sub(r'[—–-]{2,}', '，', body)
+        body = body.replace('——', '，')
+        # 去成对引号符号，保留内容
+        body = re.sub(r'[“”"《》「」『』]', '', body)
+        # 压缩重复标点与空白
+        body = re.sub(r'[，,]{2,}', '，', body)
+        body = re.sub(r'[。.]{2,}', '。', body)
+        body = body.replace('　', ' ')  # 全角空格 → 半角
+        body = re.sub(r'[ \t]{2,}', ' ', body).strip()
+        # 清理因删除内容（如 URL/括号）残留的悬空标点：标点前是空白
+        body = re.sub(r'\s+([，,。.、；;：:])', r'\1', body)
+        body = re.sub(r'([，,。.、；;：:])\s*([，,。.、；;：:])', r'\2', body)
+        # 行首/行尾多余标点清理
+        body = re.sub(r'^[，,。.、；;：:\s]+', '', body)
+        body = re.sub(r'[，,、；;：:\s]+$', '', body).strip()
+        if prefix or body:
+            out_lines.append((prefix + body).rstrip())
+    # 去掉清理后产生的空行
+    return "\n".join(l for l in out_lines if l.strip())
+
+
 def generate_script_with_llm(article, api_key):
     title=article.get("title",""); d=(article.get("description")or""); c=(article.get("content")or"")
     s=article.get("source",{}).get("name",""); news=f"标题：{title}\n来源：{s}\n简介：{d}\n正文：{c}"
-    prompt="你是一个播客文案撰写专家。请根据以下新闻内容，生成一段双人中文播客对话文案。\n\n要求：\n1. 每行以 [Host A] 或 [Host B] 开头\n2. 两人围绕新闻重点内容展开自然讨论（提问、回应、补充观点）\n3. 包含开场介绍和结尾总结\n4. 语言口语化、自然流畅\n5. 只输出文案内容\n\n新闻内容：\n"+news[:2000]
-    payload=json.dumps({"model":"deepseek-chat","messages":[{"role":"user","content":prompt}],"temperature":0.8,"max_tokens":2048}).encode("utf-8")
+    user_msg = "请根据以下新闻生成双人播客对话文案：\n\n" + news[:2000]
+    payload=json.dumps({"model":"deepseek-chat","messages":[
+        {"role":"system","content":DUAL_SCRIPT_SYSTEM},
+        {"role":"user","content":user_msg},
+    ],"temperature":0.8,"max_tokens":2048}).encode("utf-8")
     req=urllib.request.Request(DEEPSEEK_URL,data=payload,headers={"Content-Type":"application/json","Authorization":f"Bearer {api_key}"},method="POST")
     try:
         with urllib.request.urlopen(req,timeout=120) as r: result=json.loads(r.read().decode("utf-8"))
         script=result["choices"][0]["message"]["content"].strip()
         if "[Host A]" not in script: script = f"[Host A] {script}"
-        return script
+        return normalize_for_tts(script)
     except urllib.error.HTTPError as e:
         b=e.read().decode("utf-8",errors="replace")[:200]; raise RuntimeError(f"DeepSeek API 错误 ({e.code}): {b}")
     except Exception as e: raise RuntimeError(f"DeepSeek 调用失败: {e}")
@@ -249,18 +343,22 @@ def generate_summary(article):
     text = "\n\n".join(lines)
     # 缩短标点停顿：句号、感叹号、问号、破折号改为逗号
     text = text.replace("！", "，").replace("？", "，").replace("——", "，").replace("；", "，")
-    return text
+    return normalize_for_tts(text)
 
 def generate_summary_with_llm(article, api_key):
     """调用 DeepSeek 生成新闻总结"""
     title=article.get("title",""); d=(article.get("description")or""); c=(article.get("content")or"")
     s=article.get("source",{}).get("name",""); news=f"标题：{title}\n来源：{s}\n简介：{d}\n正文：{c}"
-    prompt="请用中文总结以下新闻的核心要点，要求简洁明了，200字以内，适合语音播报。\n\n新闻内容：\n"+news[:2000]
-    payload=json.dumps({"model":"deepseek-chat","messages":[{"role":"user","content":prompt}],"temperature":0.5,"max_tokens":512}).encode("utf-8")
+    user_msg = "请总结以下新闻的核心要点：\n\n" + news[:2000]
+    payload=json.dumps({"model":"deepseek-chat","messages":[
+        {"role":"system","content":SUMMARY_SYSTEM},
+        {"role":"user","content":user_msg},
+    ],"temperature":0.5,"max_tokens":512}).encode("utf-8")
     req=urllib.request.Request(DEEPSEEK_URL,data=payload,headers={"Content-Type":"application/json","Authorization":f"Bearer {api_key}"},method="POST")
     try:
         with urllib.request.urlopen(req,timeout=120) as r: result=json.loads(r.read().decode("utf-8"))
-        return result["choices"][0]["message"]["content"].strip().replace("。", "，").replace("！", "，").replace("？", "，")
+        text=result["choices"][0]["message"]["content"].strip()
+        return normalize_for_tts(text)
     except urllib.error.HTTPError as e:
         b=e.read().decode("utf-8",errors="replace")[:200]; raise RuntimeError(f"DeepSeek API 错误 ({e.code}): {b}")
     except Exception as e: raise RuntimeError(f"DeepSeek 调用失败: {e}")
@@ -331,18 +429,56 @@ def _tts_gen(model, text, **kw):
         pass
     if hasattr(audio,'numpy'): audio=audio.numpy()
     if hasattr(audio,'reshape'): audio=audio.reshape(-1)
-    # 简单低通滤波，抑制高频啸声
-    if len(audio) > 100:
-        window = 7
-        kernel = numpy.ones(window) / window
-        audio = numpy.convolve(audio, kernel, mode='same')
+    # 注意：低通滤波不在此处逐块进行（会在每个 chunk 边界造成音量塌陷），
+    # 改为所有片段拼接完成后用 _lowpass 整段处理一次。
     return audio
 
+
+def _lowpass(audio, window=7):
+    """整段移动平均低通，抑制 VoxCPM 长文本累积的高频啸声。
+    用边缘填充 + valid 卷积，避免首尾及（旧实现的）chunk 边界出现音量塌陷。"""
+    import numpy as np
+    a = np.asarray(audio, dtype=np.float32).reshape(-1)
+    if len(a) <= window or window < 2:
+        return a
+    kernel = np.ones(window, dtype=np.float32) / window
+    left = (window - 1) // 2
+    right = (window - 1) - left
+    padded = np.pad(a, (left, right), mode='edge')
+    return np.convolve(padded, kernel, mode='valid').astype(np.float32)
+
+
+def _fade_edges(audio, sr, fade_ms=8):
+    """给单段音频首尾加极短淡入淡出，消除片段拼接处的"咔哒"声。返回副本，不改原数组。"""
+    import numpy as np
+    a = np.array(audio, dtype=np.float32).reshape(-1)  # np.array 复制，避免影响锚点原始音频
+    n = int(sr * fade_ms / 1000)
+    if n > 0 and len(a) > 2 * n:
+        ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)
+        a[:n] *= ramp
+        a[-n:] *= ramp[::-1]
+    return a
+
+
+def _save_anchor_wav(audio, sr):
+    """把一段生成音频存成临时 wav，用作后续同一主播段落的音色锚点。失败返回 None。"""
+    try:
+        import numpy as np
+        a = np.clip(np.asarray(audio, dtype=np.float32).reshape(-1), -1.0, 1.0)
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False); tmp.close()
+        with wave.open(tmp.name, "wb") as wf:
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sr)
+            wf.writeframes((a * 32767).astype("<i2").tobytes())
+        return tmp.name
+    except Exception as e:
+        print(f"  ⚠ 音色锚点保存失败: {e}")
+        return None
+
 def generate_tts(text, voice_desc):
-    model,err=wait_for_model(); 
+    model,err=wait_for_model();
     if err: raise RuntimeError(err)
     print(f"  🎤 TTS... {TTS_STEPS} steps")
-    return _wav_encode(_tts_gen(model, text), int(model.tts_model.sample_rate))
+    return _wav_encode(_lowpass(_tts_gen(model, text)), int(model.tts_model.sample_rate))
 
 def _segments(script):
     segs=[]
@@ -391,8 +527,10 @@ def _split_long_text(text, max_chars=150):
 def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="", text_b=""):
     """双人 TTS：Host A / Host B 各用一份参考音频锚定音色。
     - VoxCPM2(full): 用户为某主播上传参考音频时，该主播每一段都以此音频为参考克隆；
-      未上传则该主播使用模型默认音色。
+      未上传时，自动把该主播"首段生成音频"存为锚点，后续同主播段落以此为参考，
+      尽量保持同一主播跨段音色一致（缓解默认音色逐段漂移）。
     - VoxCPM-0.5B(lite): 不支持参考音频，使用默认音色。
+    片段拼接处加极短淡入淡出，说话人切换时插入短停顿；最后整段统一低通滤波。
     """
     model, err = wait_for_model()
     if err: raise RuntimeError(err)
@@ -401,39 +539,59 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
     import torch, numpy as np
     sr = int(model.tts_model.sample_rate)
     full_audio = []
+    anchor_tmps = []  # 自动生成的锚点临时文件，结束时清理
 
-    # 每个主播的参考音频：仅使用用户上传的音频；未上传则该主播使用默认音色。
+    # 每个主播的参考音频：优先用用户上传；未上传则用首段生成音频做锚点。
     # 上传文件先归一化到模型采样率的单声道 wav（_ensure_ref_wav 兼容 mp3/wav 等）。
     ref_for = {"A": None, "B": None}
     ref_text = {"A": (text_a or "").strip(), "B": (text_b or "").strip()}
-    if MODEL_SIZE == "full":
+    auto_anchor = {"A": None, "B": None}  # 自动锚点 wav 路径（无用户参考时启用）
+    is_full = (MODEL_SIZE == "full")
+    if is_full:
         if ref_a: ref_for["A"] = _ensure_ref_wav(ref_a, sr)
         if ref_b: ref_for["B"] = _ensure_ref_wav(ref_b, sr)
     elif ref_a or ref_b:
         print("  ⚠ 0.5B 不支持参考音频，使用默认音色")
 
+    sep = np.zeros(int(sr * 0.18), dtype=np.float32)  # 说话人切换间的短停顿
     total = len(segs)
+    prev_sp = None
     try:
         for idx, s in enumerate(segs, 1):
             sp, t = s["speaker"], s["text"]
             if not t: continue
             k = dict(TTS_GEN_KWARGS)
-            ref = ref_for.get(sp)
+            ref = ref_for.get(sp) or auto_anchor.get(sp)
             if ref:
-                # 存在参考音频：每一段都以该参考音频为参考生成
+                # 存在参考音频（用户上传或自动锚点）：以该音频为参考生成
                 k["reference_wav_path"] = ref
-                if ref_text.get(sp):
-                    # 提供文本时启用高保真克隆（reference + prompt 必须成对，否则 generate 报错）
+                if ref_for.get(sp) and ref_text.get(sp):
+                    # 用户参考且提供文本时启用高保真克隆（reference + prompt 必须成对）
                     k["prompt_wav_path"] = ref
                     k["prompt_text"] = ref_text[sp]
-            print(f"  [{idx}/{total}] Host {sp}  参考音频={'是' if ref else '默认音色'}")
+            src = "用户参考" if ref_for.get(sp) else ("自动锚点" if auto_anchor.get(sp) else "默认音色")
+            print(f"  [{idx}/{total}] Host {sp}  音色来源={src}")
+            seg_audio = []
             for ci, chunk in enumerate(_split_long_text(t), 1):
-                audio = _tts_gen(model, chunk, **k)
-                full_audio.append(audio)
+                seg_audio.append(_tts_gen(model, chunk, **k))
+            if not seg_audio: continue
+            raw = np.concatenate(seg_audio) if len(seg_audio) > 1 else seg_audio[0]
+            # 无用户参考时，用本主播首段原始音频作为后续锚点（在 fade 前保存）
+            if is_full and not ref_for.get(sp) and not auto_anchor.get(sp):
+                ap = _save_anchor_wav(raw, sr)
+                if ap: auto_anchor[sp] = ap; anchor_tmps.append(ap)
+            # 说话人切换处插入短停顿
+            if prev_sp is not None and prev_sp != sp:
+                full_audio.append(sep)
+            full_audio.append(_fade_edges(raw, sr))
+            prev_sp = sp
         if not full_audio: raise RuntimeError("没有可合成的内容")
         combined = np.concatenate(full_audio) if len(full_audio) > 1 else full_audio[0]
-        return _wav_encode(combined, sr)
+        return _wav_encode(_lowpass(combined), sr)
     finally:
+        for p in anchor_tmps:
+            try: os.unlink(p)
+            except: pass
         gc.collect()
 
 
@@ -481,7 +639,10 @@ class AppHandler(SimpleHTTPRequestHandler):
         else: self.send_error(404,"Not found")
 
     def _read_json(self):
-        return json.loads(self.rfile.read(int(self.headers.get("Content-Length",0))))
+        n=int(self.headers.get("Content-Length",0))
+        if n > 5*1024*1024:  # JSON 请求体上限 5MB，防止超大 body 占满内存
+            raise ValueError("请求体过大")
+        return json.loads(self.rfile.read(n))
 
     def _handle_tts(self):
         try: d=self._read_json()
@@ -523,9 +684,10 @@ class AppHandler(SimpleHTTPRequestHandler):
         try:
             s=generate_summary_with_llm(art,key) if key else generate_summary(art)
         except RuntimeError as e:
-            if "402" in e.args[0] or "Insufficient" in e.args[0]:
+            msg=str(e)
+            if "402" in msg or "Insufficient" in msg:
                 s=generate_summary(art)
-            else: self._json_error(str(e),500); return
+            else: self._json_error(msg,500); return
         b=json.dumps({"script":s},ensure_ascii=False).encode("utf-8")
         self.send_response(200); self.send_header("Content-Type","application/json"); self.send_header("Content-Length",str(len(b)))
         self.end_headers(); self.wfile.write(b)
