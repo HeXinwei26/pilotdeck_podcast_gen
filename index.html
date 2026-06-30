@@ -1,512 +1,311 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>播客工坊 · Podcast Studio</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>播客工坊 · Podcast Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
 <style>
-:root {
-  --white: #ffffff; --bg: #fafbfc; --primary: #2563eb; --primary-dark: #1d4ed8;
-  --primary-light: #dbeafe; --primary-glow: rgba(37,99,235,0.15); --primary-ghost: rgba(37,99,235,0.06);
-  --text-primary: #111827; --text-secondary: #6b7280; --text-tertiary: #9ca3af;
-  --border: #e5e7eb; --shadow-sm: 0 1px 2px rgba(0,0,0,0.05); --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
-  --radius-sm: 8px; --radius-md: 12px; --radius-full: 9999px;
-  --font: 'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-  --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
-  --panel-left-w: 36%; --panel-right-w: 64%;
-}
+:root{--white:#fff;--bg:#fafbfc;--primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#dbeafe;--primary-glow:rgba(37,99,235,.15);--text-primary:#111827;--text-secondary:#6b7280;--text-tertiary:#9ca3af;--border:#e5e7eb;--radius-md:12px;--radius-full:9999px;--font:'Inter',sans-serif;--transition:.25s cubic-bezier(.4,0,.2,1)}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
-body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line-height:1.5;-webkit-font-smoothing:antialiased}
-.app{display:flex;height:100vh;width:100vw;position:relative;overflow:hidden}
-.panel-left{width:var(--panel-left-w);min-width:340px;height:100vh;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line-height:1.5}
+.app{display:flex;height:100vh;width:100vw;overflow:hidden}
+.panel-left{width:36%;min-width:340px;height:100vh;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .panel-left-inner{padding:24px 20px;display:flex;flex-direction:column;height:100%;overflow:hidden}
 .brand{display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-shrink:0}
 .brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--primary),#7c3aed);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
-.brand-text{font-size:16px;font-weight:600;letter-spacing:-0.3px}
+.brand-text{font-size:16px;font-weight:600}
 .brand-text span{color:var(--primary)}
+.model-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:6px;background:var(--primary-light);color:var(--primary-dark);margin-left:6px}
 .search-section{flex-shrink:0;margin-bottom:16px}
 .search-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
-.search-bar{display:flex;align-items:center;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:0 4px 0 12px;transition:border-color var(--transition),box-shadow var(--transition)}
+.search-bar{display:flex;align-items:center;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:0 4px 0 12px}
 .search-bar:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow);background:var(--white)}
 .search-bar input{flex:1;border:none;background:transparent;padding:10px 0;font-size:13px;font-family:var(--font);color:var(--text-primary);outline:none}
 .search-bar input::placeholder{color:var(--text-tertiary)}
-.search-btn{width:34px;height:34px;border:none;background:transparent;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);flex-shrink:0}
+.search-btn{width:34px;height:34px;border:none;background:transparent;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);flex-shrink:0}
 .search-btn:hover{color:var(--primary);background:var(--primary-ghost)}
-.search-btn svg{width:18px;height:18px}
 .results-area{flex:1;overflow-y:auto;min-height:0;padding-right:4px}
 .results-area::-webkit-scrollbar{width:4px}
 .results-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;color:var(--text-tertiary);height:100%}
-.empty-state svg{width:44px;height:44px;margin-bottom:14px;opacity:0.5}
-.empty-state h3{font-size:14px;font-weight:500;color:var(--text-secondary);margin-bottom:4px}
-.empty-state p{font-size:12px}
-.loading-state{display:flex;flex-direction:column;align-items:center;padding:40px;gap:12px}
-.spinner{width:24px;height:24px;border:3px solid var(--primary-light);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.error-state{padding:24px 16px;text-align:center}
-.error-state p{font-size:13px;color:#dc2626;margin-bottom:8px}
-.error-state .retry-btn{padding:6px 16px;border:1px solid var(--border);background:var(--white);border-radius:var(--radius-full);font-size:12px;font-family:var(--font);cursor:pointer;color:var(--text-secondary)}
-.error-state .retry-btn:hover{border-color:var(--primary);color:var(--primary)}
-.news-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:10px;transition:all var(--transition)}
-.news-card:hover{border-color:var(--primary-light);box-shadow:var(--shadow-sm)}
+.news-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:10px}
 .news-card.selected{border-color:var(--primary);background:#f8faff;box-shadow:0 0 0 1px var(--primary)}
-.news-card .source{font-size:11px;font-weight:500;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-.news-card h4{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.news-card .desc{font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.news-card .card-footer{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.news-card .news-link{font-size:11px;color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;gap:3px}
-.news-card .news-link:hover{text-decoration:underline}
-.news-card .select-btn{padding:5px 16px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);border-radius:var(--radius-full);font-size:12px;font-weight:500;font-family:var(--font);cursor:pointer;white-space:nowrap;transition:all var(--transition)}
-.news-card .select-btn:hover{background:var(--primary);color:#fff;box-shadow:0 2px 8px var(--primary-glow)}
+.news-card .source{font-size:11px;font-weight:500;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px}
+.news-card h4{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px}
+.news-card .desc{font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:8px}
+.news-card .card-footer{display:flex;justify-content:space-between;align-items:center}
+.news-card .news-link{font-size:11px;color:var(--primary);text-decoration:none}
+.news-card .select-btn{padding:5px 16px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);border-radius:var(--radius-full);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
 .news-card .select-btn.selected{background:var(--primary);color:#fff}
 .panel-right{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 .panel-right-inner{padding:24px 28px;display:flex;flex-direction:column;height:100%;overflow:hidden}
 .right-header{flex-shrink:0;margin-bottom:16px}
-.right-header h2{font-size:20px;font-weight:600;letter-spacing:-0.3px}
+.right-header h2{font-size:20px;font-weight:600}
 .right-header h2 span{color:var(--primary)}
-.right-header .subtitle{font-size:12px;color:var(--text-tertiary);margin-top:2px}
 .script-section{flex-shrink:0;margin-bottom:12px}
-.script-section .section-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
-.script-box{height:180px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;line-height:1.7;font-family:'Inter',monospace;white-space:pre-wrap;word-break:break-word;color:var(--text-primary);resize:none;width:100%;outline:none}
-.script-box:focus{border-color:var(--primary)}
-.script-box::-webkit-scrollbar{width:4px}
-.script-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.script-actions{display:flex;gap:8px;margin-top:8px}
-.script-gen-btn,.script-dl-btn{padding:7px 18px;border-radius:var(--radius-md);font-size:12px;font-weight:500;font-family:var(--font);cursor:pointer;transition:all var(--transition);white-space:nowrap}
+.script-box{height:180px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;line-height:1.7;font-family:monospace;white-space:pre-wrap;width:100%;outline:none;resize:none}
+.script-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.script-gen-btn,.script-dl-btn{padding:7px 18px;border-radius:var(--radius-md);font-size:12px;font-weight:500;cursor:pointer}
 .script-gen-btn{border:none;background:var(--primary);color:#fff}
-.script-gen-btn:hover:not(:disabled){background:var(--primary-dark)}
-.script-gen-btn:disabled{opacity:.4;cursor:not-allowed}
+.script-gen-btn:disabled{opacity:.4}
 .script-dl-btn{border:1.5px solid var(--primary);background:transparent;color:var(--primary);text-decoration:none}
-.script-dl-btn:hover{background:var(--primary-ghost)}
 .voice-section{flex-shrink:0;margin-bottom:12px}
 .voice-section .section-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
-.voice-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}
-.voice-row label{font-size:12px;font-weight:500;color:var(--text-primary);min-width:72px;flex-shrink:0}
-.voice-row input{flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:var(--font);color:var(--text-primary);outline:none;transition:border-color var(--transition)}
-.voice-row input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow)}
-.voice-row input::placeholder{color:var(--text-tertiary)}
+.hint-box{font-size:11px;color:var(--text-tertiary);margin-bottom:8px;padding:8px;background:#f0f5ff;border-radius:6px}
+.host-box{border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;margin-bottom:8px}
+.host-title{font-size:12px;font-weight:600;margin-bottom:6px}
+.toggle-group{display:flex;gap:10px;margin-bottom:6px}
+.toggle-group label{font-size:12px;cursor:pointer}
+.gen-btn{padding:8px 20px;border:none;background:var(--primary);color:#fff;border-radius:var(--radius-md);font-size:13px;font-weight:600;cursor:pointer}
+.gen-btn:disabled{opacity:.4}
+.gen-btn.loading{color:transparent;position:relative}
+.gen-btn.loading::after{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .audio-section{flex-shrink:0;margin-bottom:12px;display:none}
 .audio-section.visible{display:block}
-.audio-section .audio-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
-.audio-player-wrapper{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--primary-ghost);border-radius:var(--radius-md);border:1px solid var(--primary-light)}
-.audio-player-wrapper audio{flex:1;height:38px;min-width:0}
-.download-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);border-radius:var(--radius-full);font-size:12px;font-weight:500;font-family:var(--font);cursor:pointer;text-decoration:none;white-space:nowrap;flex-shrink:0;transition:all var(--transition)}
+.audio-player-wrapper{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--primary-ghost);border-radius:var(--radius-md)}
+.audio-player-wrapper audio{flex:1;height:38px}
+.download-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:1.5px solid var(--primary);border-radius:var(--radius-full);font-size:12px;color:var(--primary);text-decoration:none}
 .download-btn:hover{background:var(--primary);color:#fff}
-.download-btn svg{width:14px;height:14px}
-.gen-btn{padding:8px 20px;border:none;background:var(--primary);color:#fff;border-radius:var(--radius-md);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;transition:all var(--transition);white-space:nowrap}
-.gen-btn:hover:not(:disabled){background:var(--primary-dark);box-shadow:0 4px 12px var(--primary-glow)}
-.gen-btn:disabled{opacity:.4;cursor:not-allowed}
-.gen-btn.loading{position:relative;color:transparent}
-.gen-btn.loading::after{content:'';position:absolute;inset:0;margin:auto;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
-.status-msg{font-size:11px;padding:6px 10px;border-radius:var(--radius-sm);margin-top:6px;display:none}
+.status-msg{font-size:11px;padding:6px 10px;border-radius:6px;margin-top:6px;display:none}
 .status-msg.visible{display:block}
 .status-msg.info{background:var(--primary-light);color:var(--primary-dark)}
 .status-msg.error{background:#fef2f2;color:#dc2626}
 .status-msg.success{background:#f0fdf4;color:#16a34a}
-.model-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:6px;background:var(--primary-light);color:var(--primary-dark);margin-left:6px}
-.file-row{display:flex;gap:8px;margin-bottom:6px;align-items:center}
-.file-row label{font-size:12px;font-weight:500;color:var(--text-primary);min-width:72px;flex-shrink:0}
-.file-row input[type=file]{flex:1;font-size:11px;font-family:var(--font);padding:4px 0}
 .config-section{margin-top:auto;flex-shrink:0;padding-top:12px;border-top:1px solid var(--border)}
-.config-toggle{background:none;border:none;font-size:11px;font-family:var(--font);color:var(--text-tertiary);cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 0;transition:color var(--transition)}
-.config-toggle:hover{color:var(--text-secondary)}
-.config-toggle svg{width:12px;height:12px;transition:transform var(--transition)}
+.config-toggle{background:none;border:none;font-size:11px;color:var(--text-tertiary);cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 0}
 .config-toggle.open svg{transform:rotate(180deg)}
 .config-body{margin-top:8px;display:none;flex-direction:column;gap:8px}
 .config-body.open{display:flex}
-.config-field{display:flex;align-items:center;gap:6px}
-.config-field label{font-size:11px;font-weight:500;color:var(--text-secondary);min-width:80px;flex-shrink:0}
-.config-field input{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;font-family:var(--font);color:var(--text-primary);background:var(--bg);outline:none}
-.config-field input:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-glow)}
-.config-field .save-btn{padding:6px 12px;border:none;background:var(--primary);color:#fff;border-radius:var(--radius-sm);font-size:11px;font-family:var(--font);font-weight:500;cursor:pointer;white-space:nowrap}
-.config-field .save-btn:hover{background:var(--primary-dark)}
+.config-field{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.config-field label{font-size:11px;font-weight:500;color:var(--text-secondary);min-width:80px}
+.config-field input{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px}
+.config-field .save-btn{padding:6px 12px;border:none;background:var(--primary);color:#fff;border-radius:6px;font-size:11px;cursor:pointer}
 .config-hint{font-size:10px;color:var(--text-tertiary);line-height:1.4}
-.config-hint a{color:var(--primary);text-decoration:none}
-.config-hint a:hover{text-decoration:underline}
-.fade-in{animation:fadeIn .35s ease both}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:820px){
-  .app{flex-direction:column;overflow-y:auto}
-  .panel-left,.panel-right{width:100%;min-width:0;height:auto}
-  .panel-left{border-right:none;border-bottom:1px solid var(--border)}
-  .panel-left-inner,.panel-right-inner{padding:16px}
-  .results-area{max-height:260px}
-  .script-box{height:150px}
-  .voice-row{flex-direction:column;align-items:stretch}
-  .voice-row label{min-width:0}
-}
+@media(max-width:820px){.app{flex-direction:column}.panel-left,.panel-right{width:100%;min-width:0;height:auto}}
 </style>
 </head>
 <body>
 <div class="app">
-
-<!-- LEFT -->
-<div class="panel-left">
-<div class="panel-left-inner">
-
+<div class="panel-left"><div class="panel-left-inner">
 <div class="brand">
-  <div class="brand-icon">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-  </div>
+  <div class="brand-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
   <div class="brand-text">播客<span>工坊</span></div>
-  <span id="modelBadge" style="display:inline-block;font-size:10px;padding:2px 8px;border-radius:6px;background:var(--primary-light);color:var(--primary-dark);margin-left:6px">加载中</span>
+  <span class="model-badge" id="modelBadge">加载中</span>
 </div>
-
 <div class="search-section">
   <label class="search-label" for="topicInput">搜索领域动态</label>
   <div class="search-bar">
-    <input id="topicInput" type="text" placeholder="大模型、AI 芯片、量子计算、climate..." autocomplete="off" />
-    <button class="search-btn" id="searchBtn" aria-label="搜索">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    </button>
+    <input id="topicInput" type="text" placeholder="大模型、AI 芯片、量子计算..." autocomplete="off" />
+    <button class="search-btn" id="searchBtn" aria-label="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
   </div>
 </div>
-
 <div class="results-area" id="resultsArea">
-  <div class="empty-state" id="emptyState">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-    <h3>输入关键词开始探索</h3>
-    <p>获取全球最新新闻</p>
-  </div>
-  <div class="loading-state" id="loadingState" style="display:none;"><div class="spinner"></div><p style="font-size:12px;color:var(--text-secondary);">正在搜索...</p></div>
-  <div class="error-state" id="errorState" style="display:none;"><p id="errorMsg"></p><button class="retry-btn" id="retryBtn">重新搜索</button></div>
-  <div id="cardsContainer" style="display:none;"></div>
+  <div class="empty-state" id="emptyState"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><h3>输入关键词开始探索</h3><p>获取全球最新新闻</p></div>
+  <div class="loading-state" id="loadingState" style="display:none"><div class="spinner"></div><p style="font-size:12px">正在搜索...</p></div>
+  <div class="error-state" id="errorState" style="display:none"><p id="errorMsg"></p><button class="retry-btn" id="retryBtn" style="padding:6px 16px;border:1px solid var(--border);background:var(--white);border-radius:999px;font-size:12px;cursor:pointer">重新搜索</button></div>
+  <div id="cardsContainer" style="display:none"></div>
 </div>
-
-<!-- CONFIG -->
 <div class="config-section">
-  <button class="config-toggle" id="configToggle" aria-label="配置">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-    API 配置
-  </button>
+  <button class="config-toggle" id="configToggle" aria-label="配置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>API 配置</button>
   <div class="config-body" id="configBody">
-    <div class="config-field">
-      <label>NewsAPI Key</label>
-      <input type="text" id="newsapiKeyInput" placeholder="输入你的 NewsAPI key" />
-      <button class="save-btn" data-key="newsapi">保存</button>
-    </div>
-    <div class="config-field">
-      <label>DeepSeek Key</label>
-      <input type="text" id="deepseekKeyInput" placeholder="可选：用于 AI 生成播客文案" />
-      <button class="save-btn" data-key="deepseek">保存</button>
-    </div>
-    <div class="config-hint">
-      <strong>NewsAPI</strong>：在 <a href="https://newsapi.org/register" target="_blank" rel="noopener">newsapi.org</a> 免费注册获取 Key<br/>
-      <strong>DeepSeek</strong>：在 <a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a> 注册获取 API Key（可选），用于 AI 总结新闻并生成更自然的双人播客对话<br/>
-      <strong>TTS</strong>：VoxCPM2（首次启动自动下载模型）
-    </div>
+    <div class="config-field"><label>NewsAPI Key</label><input type="text" id="newsapiKeyInput" placeholder="Key" /><button class="save-btn" data-key="newsapi">保存</button></div>
+    <div class="config-field"><label>DeepSeek Key</label><input type="text" id="deepseekKeyInput" placeholder="可选" /><button class="save-btn" data-key="deepseek">保存</button></div>
+    <div class="config-hint"><strong>NewsAPI</strong>: newsapi.org 注册获取</div>
   </div>
 </div>
-
 </div></div>
 
-<!-- RIGHT -->
-<div class="panel-right">
-<div class="panel-right-inner">
+<div class="panel-right"><div class="panel-right-inner">
+<div class="right-header"><h2>播客 <span>工坊</span></h2><div class="subtitle">生成双人播客文案 → 合成多音色音频</div></div>
 
-<div class="right-header">
-  <h2>播客 <span>工坊</span></h2>
-  <div class="subtitle">生成双人播客文案 → 合成多音色音频</div>
-</div>
-
-<!-- Script -->
 <div class="script-section">
   <label class="section-label">🎯 播客文案</label>
   <textarea class="script-box" id="scriptBox" placeholder="先在左侧选择新闻，点击「生成播客文案」后可直接编辑修改"></textarea>
   <div class="script-actions">
     <button class="script-gen-btn" id="genScriptBtn" disabled>生成播客文案</button>
-    <a class="script-dl-btn" id="dlScriptBtn" style="display:none;" download="podcast_script.txt">📄 下载文案 .txt</a>
+    <a class="script-dl-btn" id="dlScriptBtn" style="display:none" download="podcast_script.txt">📄 下载 .txt</a>
     <button class="gen-btn" id="genDualBtn" disabled style="display:none">🎙️ 生成播客音频</button>
+    <button class="gen-btn" id="confirmVoiceBtn" style="display:none;background:var(--primary-dark)">✅ 确认音色</button>
   </div>
 </div>
 
-<!-- Voices -->
 <div class="voice-section">
   <label class="section-label" id="voiceSectionLabel">🎙️ 主播音色设置</label>
-  <div id="voiceInputs">
-    <div class="voice-row"><label for="voiceA">主播 A</label><input id="voiceA" type="text" placeholder="普通话 / 粤语 / 四川话..." value="普通话" /></div>
-    <div class="voice-row"><label for="voiceB">主播 B</label><input id="voiceB" type="text" placeholder="温柔女声 / 东北话..." value="普通话" /></div>
-  </div>
-  <div id="fileInputs" style="display:none">
-    <div class="file-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center"><label style="font-size:12px;font-weight:500;color:var(--text-primary);min-width:72px;flex-shrink:0">主播 A 音色</label><input type="file" id="refAudioA" accept="audio/*" style="flex:1;font-size:11px" /><input id="refTextA" type="text" placeholder="音频文本（选填）" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:var(--font);outline:none;margin-left:8px" /></div>
-    <div class="file-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center"><label style="font-size:12px;font-weight:500;color:var(--text-primary);min-width:72px;flex-shrink:0">主播 B 音色</label><input type="file" id="refAudioB" accept="audio/*" style="flex:1;font-size:11px" /><input id="refTextB" type="text" placeholder="音频文本（选填）" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:var(--font);outline:none;margin-left:8px" /></div>
-    <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">上传 5-30 秒参考音频，用于音色克隆（文本为选填）</div>
+  <div id="voxcpm2Config" style="display:none">
+    <div class="hint-box">💡 每个主播可从以下两种方式中选择一种：上传参考音频克隆音色，或输入音色描述让模型生成。选择后点击「确认音色设置」生效。</div>
+    <div style="display:flex;gap:8px">
+    <div class="host-box" style="flex:1">
+      <div class="host-title">主播 A</div>
+      <div class="toggle-group">
+        <label><input type="radio" name="modeA" value="upload" checked> 上传参考音频</label>
+        <label><input type="radio" name="modeA" value="desc"> 输入音色</label>
+      </div>
+      <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" style="font-size:11px" /><button class="clear-audio" style="display:none;padding:3px 8px;border:1px solid #dc2626;color:#dc2626;border-radius:4px;font-size:10px;cursor:pointer;margin-left:6px">删除</button></div>
+      <div class="desc-area" style="display:none"><input class="voice-desc" type="text" placeholder="普通话 / 粤语中年男性..." style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;outline:none" /></div>
+    </div>
+    <div class="host-box">
+      <div class="host-title">主播 B</div>
+      <div class="toggle-group">
+        <label><input type="radio" name="modeB" value="upload" checked> 上传参考音频</label>
+        <label><input type="radio" name="modeB" value="desc"> 输入音色</label>
+      </div>
+      <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" style="font-size:11px" /><button class="clear-audio" style="display:none;padding:3px 8px;border:1px solid #dc2626;color:#dc2626;border-radius:4px;font-size:10px;cursor:pointer;margin-left:6px">删除</button></div>
+      <div class="desc-area" style="display:none"><input class="voice-desc" type="text" placeholder="温柔女声 / 东北话..." style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;outline:none" /></div>
+    </div>
+    </div>
   </div>
   <div class="status-msg" id="statusMsg"></div>
 </div>
 
-<!-- Audio -->
 <div class="audio-section" id="audioSection">
   <div class="audio-label">生成的播客音频</div>
   <div class="audio-player-wrapper">
     <audio id="audioPlayer" controls preload="metadata"></audio>
-    <a class="download-btn" id="downloadBtn" download="podcast_dual.wav">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      下载音频
-    </a>
+    <a class="download-btn" id="downloadBtn" download="podcast_dual.wav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>下载</a>
   </div>
 </div>
-
-</div>
-</div>
+</div></div>
 </div>
 
 <script>
-(function(){'use strict';
-
-const state = {
-  apiKeys: {
-    newsapi: localStorage.getItem('podcast_newsapi_key')||'',
-    deepseek: localStorage.getItem('podcast_deepseek_key')||'',
-  },
-  ttsReady: false,
-  searchResults: [],
-  selectedNews: null,
-  podcastScript: null,
-  audioUrl: null,
-  isSearching: false,
-  isGeneratingScript: false,
-  isGeneratingDual: false,
-};
-
-const $ = s => document.querySelector(s);
-const topicInput = $('#topicInput');
-const searchBtn = $('#searchBtn');
-const emptyState = $('#emptyState');
-const loadingState = $('#loadingState');
-const errorState = $('#errorState');
-const errorMsg = $('#errorMsg');
-const retryBtn = $('#retryBtn');
-const cardsContainer = $('#cardsContainer');
-const scriptBox = $('#scriptBox');
-const genScriptBtn = $('#genScriptBtn');
-const dlScriptBtn = $('#dlScriptBtn');
-const voiceA = $('#voiceA');
-const voiceB = $('#voiceB');
-const genDualBtn = $('#genDualBtn');
-const statusMsg = $('#statusMsg');
-const audioSection = $('#audioSection');
-const audioPlayer = $('#audioPlayer');
-const downloadBtn = $('#downloadBtn');
-const configToggle = $('#configToggle');
-const configBody = $('#configBody');
-const newsapiKeyInput = $('#newsapiKeyInput');
-const deepseekKeyInput = $('#deepseekKeyInput');
-const modelBadge = $('#modelBadge');
-const voiceSectionLabel = $('#voiceSectionLabel');
-const voiceInputs = $('#voiceInputs');
-const fileInputs = $('#fileInputs');
-const voiceSection = document.querySelector('.voice-section');
-const refAudioA = $('#refAudioA');
-const refAudioB = $('#refAudioB');
-const refTextA = $('#refTextA');
-const refTextB = $('#refTextB');
-
-function showEmpty(){emptyState.style.display='flex';loadingState.style.display='none';errorState.style.display='none';cardsContainer.style.display='none'}
-function showLoading(){emptyState.style.display='none';loadingState.style.display='flex';errorState.style.display='none';cardsContainer.style.display='none'}
-function showError(m){emptyState.style.display='none';loadingState.style.display='none';errorState.style.display='flex';cardsContainer.style.display='none';errorMsg.textContent=m}
-function showCards(){emptyState.style.display='none';loadingState.style.display='none';errorState.style.display='none';cardsContainer.style.display='block'}
-function setStatus(m,t){statusMsg.textContent=m;statusMsg.className='status-msg visible '+t}
-function clearStatus(){statusMsg.className='status-msg';statusMsg.textContent=''}
-function hideAudioSection(){audioSection.classList.remove('visible');if(state.audioUrl){URL.revokeObjectURL(state.audioUrl);state.audioUrl=null}audioPlayer.removeAttribute('src');downloadBtn.removeAttribute('href')}
-
-// Config
-function loadConfig(){newsapiKeyInput.value=state.apiKeys.newsapi;deepseekKeyInput.value=state.apiKeys.deepseek}
-configToggle.addEventListener('click',function(){configBody.classList.toggle('open');this.classList.toggle('open')});
+(function(){
+'use strict';
+const LS=localStorage;
+const state={apiKeys:{newsapi:LS.getItem('podcast_newsapi_key')||'',deepseek:LS.getItem('podcast_deepseek_key')||''},model:'',ttsReady:false,searchResults:[],selectedNews:null,audioUrl:null,isSearching:false,isGeneratingScript:false,isGeneratingDual:false};
+const $=s=>document.querySelector(s);
+const ti=$('#topicInput'),sb=$('#searchBtn'),es=$('#emptyState'),ls=$('#loadingState'),ers=$('#errorState'),em=$('#errorMsg'),rt=$('#retryBtn'),cc=$('#cardsContainer'),sx=$('#scriptBox'),gs=$('#genScriptBtn'),ds=$('#dlScriptBtn'),gd=$('#genDualBtn'),sm=$('#statusMsg'),as=$('#audioSection'),ap=$('#audioPlayer'),db=$('#downloadBtn'),ct=$('#configToggle'),cb=$('#configBody'),nk=$('#newsapiKeyInput'),dk=$('#deepseekKeyInput'),mb=$('#modelBadge'),vsl=$('#voiceSectionLabel'),vs=$('.voice-section');
+function se(m,t){sm.textContent=m;sm.className='status-msg visible '+t}
+function cl(){sm.className='status-msg';sm.textContent=''}
+function ha(){as.classList.remove('visible');if(state.audioUrl){URL.revokeObjectURL(state.audioUrl);state.audioUrl=null}ap.removeAttribute('src');db.removeAttribute('href')}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function lc(){nk.value=state.apiKeys.newsapi;dk.value=state.apiKeys.deepseek}
+ct.addEventListener('click',function(){cb.classList.toggle('open');this.classList.toggle('open')});
 document.querySelectorAll('.save-btn').forEach(function(b){b.addEventListener('click',function(){
-  var k=this.dataset.key;
-  if(k==='newsapi'){var v=newsapiKeyInput.value.trim();state.apiKeys.newsapi=v;localStorage.setItem('podcast_newsapi_key',v);setStatus('Key 已保存','success');setTimeout(clearStatus,2000)}
-  if(k==='deepseek'){var v=deepseekKeyInput.value.trim();state.apiKeys.deepseek=v;localStorage.setItem('podcast_deepseek_key',v);setStatus('DeepSeek Key 已保存','success');setTimeout(clearStatus,2000)}
+var k=this.dataset.key;
+if(k==='newsapi'){var v=nk.value.trim();state.apiKeys.newsapi=v;LS.setItem('podcast_newsapi_key',v);se('Key 已保存','success');setTimeout(cl,2000)}
+if(k==='deepseek'){var v=dk.value.trim();state.apiKeys.deepseek=v;LS.setItem('podcast_deepseek_key',v);se('DeepSeek Key 已保存','success');setTimeout(cl,2000)}
 })});
 
-// Search
-async function searchNews(topic){
-  if(!topic.trim()||state.isSearching)return;
-  var key=state.apiKeys.newsapi;
-  if(!key){showError('请先配置 NewsAPI Key');return}
-  state.isSearching=true;searchBtn.style.pointerEvents='none';showLoading();
-  try{
-    var enc=encodeURIComponent(topic.trim());
-    var res=await fetch(`https://newsapi.org/v2/everything?q=${enc}&pageSize=3&sortBy=publishedAt&apiKey=${key}`);
-    var data=await res.json();
-    if(data.status==='error')throw new Error(data.message||'API 错误');
-    if(!data.articles||!data.articles.length){showError('未找到相关新闻');state.searchResults=[];state.isSearching=false;searchBtn.style.pointerEvents='';return}
-    state.searchResults=data.articles.slice(0,3);
-    renderCards(state.searchResults);showCards();
-  }catch(err){showError(err.message||'搜索失败');state.searchResults=[]}
-  state.isSearching=false;searchBtn.style.pointerEvents='';
+async function sn(topic){
+if(!topic.trim()||state.isSearching)return;
+var key=state.apiKeys.newsapi;
+if(!key){es.style.display='flex';ers.style.display='none';em.textContent='请先配置 NewsAPI Key';return}
+state.isSearching=true;sb.style.pointerEvents='none';es.style.display='none';ls.style.display='flex';ers.style.display='none';cc.style.display='none';
+try{
+var res=await fetch('https://newsapi.org/v2/everything?q='+encodeURIComponent(topic.trim())+'&pageSize=3&sortBy=publishedAt&apiKey='+key);
+var data=await res.json();
+if(data.status==='error')throw new Error(data.message||'错误');
+if(!data.articles||!data.articles.length){em.textContent='未找到相关新闻';es.style.display='none';ls.style.display='none';ers.style.display='flex';state.searchResults=[];return}
+state.searchResults=data.articles.slice(0,3);
+cc.innerHTML='';
+state.searchResults.forEach(function(a,i){
+var c=document.createElement('div');c.className='news-card';c.style.animationDelay=(i*0.1)+'s';
+var src=a.source?.name||'',t=a.title||'',d=a.description?((a.description.length>120?a.description.slice(0,120)+'...':a.description)):'',u=a.url||'',sel=state.selectedNews===a;
+c.innerHTML='<div class="source">'+esc(src)+'</div><h4>'+esc(t)+'</h4>'+(d?'<div class="desc">'+esc(d)+'</div>':'')+'<div class="card-footer">'+(u?'<a class="news-link" href="'+esc(u)+'" target="_blank">🔗 原文</a>':'<span></span>')+'<button class="select-btn'+(sel?' selected':'')+'">'+(sel?'已选中':'选这条')+'</button></div>';
+c.querySelector('.select-btn').addEventListener('click',function(e){e.stopPropagation();
+state.selectedNews=a;state.podcastScript=null;ha();cl();sx.value='';sx.placeholder='已选择';ds.style.display='none';gs.disabled=false;gd.disabled=true;
+cc.querySelectorAll('.select-btn').forEach(function(x,i){var s2=state.selectedNews===state.searchResults[i];x.textContent=s2?'已选中':'选这条';x.classList.toggle('selected',s2)});
+});
+cc.appendChild(c);
+});
+es.style.display='none';ls.style.display='none';ers.style.display='none';cc.style.display='block';
+}catch(err){em.textContent=err.message||'搜索失败';es.style.display='none';ls.style.display='none';ers.style.display='flex';state.searchResults=[]}
+state.isSearching=false;sb.style.pointerEvents='';
 }
+sb.addEventListener('click',function(){sn(ti.value)});
+ti.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();sn(ti.value)}});
+rt.addEventListener('click',function(){sn(ti.value)});
 
-// Render cards
-function renderCards(articles){
-  cardsContainer.innerHTML='';
-  articles.forEach(function(a,i){
-    var card=document.createElement('div');card.className='news-card fade-in';card.style.animationDelay=(i*0.1)+'s';
-    var source=a.source?.name||'来源未知';var title=a.title||'';var desc=a.description?a.description.length>120?a.description.slice(0,120)+'...':a.description:'';
-    var url=a.url||'';
-    var sel=state.selectedNews===a;
-    card.innerHTML=`
-      <div class="source">${esc(source)}</div>
-      <h4>${esc(title)}</h4>
-      ${desc?'<div class="desc">'+esc(desc)+'</div>':''}
-      <div class="card-footer">
-        ${url?'<a class="news-link" href="'+esc(url)+'" target="_blank" rel="noopener">🔗 查看原文</a>':'<span></span>'}
-        <button class="select-btn ${sel?'selected':''}">${sel?'已选中':'选这条'}</button>
-      </div>`;
-    card.querySelector('.select-btn').addEventListener('click',function(e){e.stopPropagation();selectNews(a)});
-    cardsContainer.appendChild(card);
-  });
+gs.addEventListener('click',async function(){
+if(state.isGeneratingScript||!state.selectedNews)return;
+state.isGeneratingScript=true;gs.disabled=true;
+if(state.model==='VoxCPM-0.5B'){
+gs.textContent='生成中...';var hasAi=!!state.apiKeys.deepseek;
+if(hasAi)se('🤖 DeepSeek 总结...','info');
+try{
+var res=await fetch('/generate_summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({article:state.selectedNews,api_key:state.apiKeys.deepseek})});
+var data=await res.json();
+if(!res.ok)throw new Error(data.error||'失败');
+sx.value=data.script;sx.placeholder='';
+ds.style.display='inline-flex';ds.href='data:text/plain;charset=utf-8,'+encodeURIComponent(data.script);
+gd.disabled=false;se('✅ 摘要已生成','success');setTimeout(cl,3000);
+}catch(err){se('生成失败：'+err.message,'error')}
+state.isGeneratingScript=false;gs.disabled=false;gs.textContent='生成新闻摘要';return;
 }
-
-function updateCardsSelection(){
-  var btns=cardsContainer.querySelectorAll('.select-btn');
-  var cards=cardsContainer.querySelectorAll('.news-card');
-  btns.forEach(function(b,i){var a=state.searchResults[i];var s=state.selectedNews===a;b.textContent=s?'已选中':'选这条';b.classList.toggle('selected',s)});
-  cards.forEach(function(c,i){c.classList.toggle('selected',state.selectedNews===state.searchResults[i])});
-}
-
-function selectNews(article){
-  state.selectedNews=article;state.podcastScript=null;hideAudioSection();clearStatus();
-  scriptBox.value='';scriptBox.placeholder='新闻已选择。点击「生成播客文案」生成双人对话脚本';
-  dlScriptBtn.style.display='none';
-  genScriptBtn.disabled=false;genDualBtn.disabled=true;
-  updateCardsSelection();
-}
-
-// Generate script (use DeepSeek if key available)
-genScriptBtn.addEventListener('click',async function(){
-  if(state.isGeneratingScript||!state.selectedNews)return;
-  state.isGeneratingScript=true;genScriptBtn.disabled=true;
-  if(state.model==='VoxCPM-0.5B'){
-    genScriptBtn.textContent='生成中...';
-    var hasAi=!!state.apiKeys.deepseek;
-    if(hasAi)setStatus('🤖 正在调用 DeepSeek 总结新闻...','info');
-    try{
-      var res=await fetch('/generate_summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({article:state.selectedNews,api_key:state.apiKeys.deepseek})});
-      var data=await res.json();
-      if(!res.ok)throw new Error(data.error||'生成失败');
-      scriptBox.value=data.script;scriptBox.placeholder='';
-      dlScriptBtn.style.display='inline-flex';dlScriptBtn.href='data:text/plain;charset=utf-8,'+encodeURIComponent(data.script);
-      genDualBtn.disabled=false;setStatus('✅ 摘要已生成','success');setTimeout(clearStatus,3000);
-    }catch(err){setStatus('生成失败：'+err.message,'error')}
-    state.isGeneratingScript=false;genScriptBtn.disabled=false;genScriptBtn.textContent='生成新闻摘要';
-    return;
-  }
-  var hasAi=!!state.apiKeys.deepseek;
-  genScriptBtn.textContent=hasAi?'AI 生成中...':'生成中...';
-  genScriptBtn.textContent=hasAi?'AI 生成中...':'生成中...';
-  if(hasAi)setStatus('🤖 正在调用 DeepSeek 总结新闻并生成对话...','info');
-  try{
-    var res=await fetch('/generate_script_v2',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({article:state.selectedNews,api_key:state.apiKeys.deepseek})
-    });
-    var data=await res.json();
-    if(!res.ok)throw new Error(data.error||'生成失败');
-    state.podcastScript=data.script;
-    scriptBox.value=data.script;
-    scriptBox.placeholder='';
-    dlScriptBtn.style.display='inline-flex';
-    dlScriptBtn.href='data:text/plain;charset=utf-8,'+encodeURIComponent(data.script);
-    genDualBtn.disabled=false;
-    setStatus('✅ 文案已生成，可设置音色后生成音频','success');setTimeout(clearStatus,3000);
-  }catch(err){setStatus('生成失败：'+err.message,'error')}
-  state.isGeneratingScript=false;genScriptBtn.disabled=false;genScriptBtn.textContent=state.model==='VoxCPM-0.5B'?'生成新闻摘要':'生成播客文案';
+var hasAi=!!state.apiKeys.deepseek;gs.textContent=hasAi?'AI 生成中...':'生成中...';
+if(hasAi)se('🤖 DeepSeek 生成对话...','info');
+try{
+var res=await fetch('/generate_script_v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({article:state.selectedNews,api_key:state.apiKeys.deepseek})});
+var data=await res.json();
+if(!res.ok)throw new Error(data.error||'失败');
+sx.value=data.script;sx.placeholder='';
+ds.style.display='inline-flex';ds.href='data:text/plain;charset=utf-8,'+encodeURIComponent(data.script);
+gd.disabled=false;se('✅ 文案已生成','success');setTimeout(cl,3000);
+}catch(err){se('生成失败：'+err.message,'error')}
+state.isGeneratingScript=false;gs.disabled=false;gs.textContent=state.model==='VoxCPM-0.5B'?'生成新闻摘要':'生成播客文案';
 });
 
-// Dual TTS
-genDualBtn.addEventListener('click',async function(){
-  if(state.isGeneratingDual||!scriptBox.value)return;
-  var va=voiceA.value.trim()||'普通话';var vb=voiceB.value.trim()||'普通话';
-  state.isGeneratingDual=true;genDualBtn.disabled=true;genDualBtn.classList.add('loading');genDualBtn.textContent='合成中...';hideAudioSection();
-  var ready=false;
-  for(var t=0;t<200;t++){
-    try{var sr=await fetch('/status');var st=await sr.json();if(st.status==='ready'){ready=true;break}setStatus('⏳ 模型加载中...'+(st.progress?' ('+st.progress+')':''),'info')}catch(e){}
-    await new Promise(function(r){setTimeout(r,3000)});
-  }
-  if(!ready){setStatus('模型未就绪，请稍后重试','error');state.isGeneratingDual=false;genDualBtn.disabled=false;genDualBtn.classList.remove('loading');genDualBtn.textContent='🎙️ 生成播客音频';return}
+ds.addEventListener('click',function(){this.href='data:text/plain;charset=utf-8,'+encodeURIComponent(sx.value)});
 
-  setStatus('🎤 正在合成语音...','info');
-  try{
-    if(state.model==='VoxCPM-0.5B'){
-      var res=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:scriptBox.value,voice_desc:''})});
-    }else{
-      var fileA=refAudioA.files&&refAudioA.files[0];
-      var fileB=refAudioB.files&&refAudioB.files[0];
-      var res;
-      if(fileA||fileB){
-        // 有参考音频：用 multipart 上传，后端对该主播每段都以此音频为参考克隆
-        var fd=new FormData();
-        fd.append('script',scriptBox.value);
-        fd.append('voice_a',va);fd.append('voice_b',vb);
-        fd.append('text_a',refTextA.value.trim());fd.append('text_b',refTextB.value.trim());
-        if(fileA)fd.append('ref_a',fileA,fileA.name);
-        if(fileB)fd.append('ref_b',fileB,fileB.name);
-        res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
-      }else{
-        // 无参考音频：默认音色，走 JSON
-        res=await fetch('/generate_dual_tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script:scriptBox.value,voice_a:va,voice_b:vb})});
-      }
-    }
-    if(!res.ok){var ed;try{ed=await res.json()}catch(e){}throw new Error(ed?.error||'合成失败')}
-    var blob=await res.blob();var url=URL.createObjectURL(blob);
-    state.audioUrl=url;
-    audioSection.classList.add('visible');
-    audioPlayer.src=url;audioPlayer.load();
-    downloadBtn.href=url;
-    setStatus('✅ 播客音频已生成','success');setTimeout(clearStatus,3000);
-  }catch(err){setStatus('生成失败：'+err.message,'error')}
-  state.isGeneratingDual=false;genDualBtn.disabled=false;genDualBtn.classList.remove('loading');genDualBtn.textContent='🎙️ 生成播客音频';
+gd.addEventListener('click',async function(){
+if(state.isGeneratingDual||!sx.value)return;
+state.isGeneratingDual=true;gd.disabled=true;gd.classList.add('loading');gd.textContent='合成中...';ha();
+for(var t=0;t<200;t++){try{var sr=await fetch('/status');var st=await sr.json();if(st.status==='ready')break;se('⏳ 模型加载中...','info')}catch(e){}await new Promise(function(r){setTimeout(r,3000)})}
+se('🎤 合成语音...','info');
+try{
+if(state.model==='VoxCPM-0.5B'){
+var res=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:sx.value,voice_desc:''})});
+}else{
+var va=document.getElementById('voiceA')?.value||'',vb=document.getElementById('voiceB')?.value||'';
+var fd=new FormData();fd.append('script',sx.value);fd.append('voice_a',va);fd.append('voice_b',vb);
+var uploadA=document.querySelector('[name=modeA]:checked');var uploadB=document.querySelector('[name=modeB]:checked');
+if(uploadA&&uploadA.value==='upload'&&document.querySelector('#voxcpm2Config .host-box:first-child .ref-audio')?.files[0])
+fd.append('ref_a',document.querySelector('#voxcpm2Config .host-box:first-child .ref-audio').files[0]);
+if(uploadB&&uploadB.value==='upload'&&document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio')?.files[0])
+fd.append('ref_b',document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio').files[0]);
+var res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
+}
+if(!res.ok){var ed;try{ed=await res.json()}catch(e){}throw new Error(ed?.error||'失败')}
+var blob=await res.blob();var url=URL.createObjectURL(blob);
+state.audioUrl=url;as.classList.add('visible');ap.src=url;ap.load();db.href=url;
+se('✅ 音频已生成','success');setTimeout(cl,3000);
+}catch(err){se('生成失败：'+err.message,'error')}
+state.isGeneratingDual=false;gd.disabled=false;gd.classList.remove('loading');gd.textContent='🎙️ 生成播客音频';
 });
 
-// Download script (实时读取 textarea 内容)
-dlScriptBtn.addEventListener('click',function(){
-  this.href='data:text/plain;charset=utf-8,'+encodeURIComponent(scriptBox.value);
+// VoxCPM2 UI 控制
+document.querySelectorAll('.host-box').forEach(function(box){
+var radios=box.querySelectorAll('[type=radio]');
+radios.forEach(function(r){r.addEventListener('change',function(){
+var up=box.querySelector('.upload-area'),de=box.querySelector('.desc-area');
+up.style.display=this.value==='upload'?'block':'none';de.style.display=this.value==='desc'?'block':'none';
+})});
+var fi=box.querySelector('.ref-audio'),dl=box.querySelector('.clear-audio');
+if(fi&&dl){fi.addEventListener('change',function(){dl.style.display=this.files[0]?'inline-block':'none'});
+dl.addEventListener('click',function(){fi.value='';dl.style.display='none'})}
+});
+document.getElementById('confirmVoiceBtn')?.addEventListener('click',function(){
+var va=document.querySelector('#voxcpm2Config .host-box:first-child .voice-desc')?.value||'';
+var vb=document.querySelector('#voxcpm2Config .host-box:last-child .voice-desc')?.value||'';
+document.getElementById('voiceA').value=va;document.getElementById('voiceB').value=vb;
+gd.disabled=true;se('✅ 音色已确认，可生成音频','success');gd.disabled=false;setTimeout(cl,3000);
 });
 
-// Search triggers
-searchBtn.addEventListener('click',function(){searchNews(topicInput.value)});
-topicInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();searchNews(topicInput.value)}});
-retryBtn.addEventListener('click',function(){searchNews(topicInput.value)});
-
-function esc(str){var d=document.createElement('div');d.textContent=str;return d.innerHTML}
-
-// Init
 (function init(){
-  var checkStatus=function(){
-    fetch('/status').then(function(r){return r.json()}).then(function(d){
-      state.ttsReady=d.status==='ready';state.model=d.model||'';
-      modelBadge.textContent=d.model||'?';
-      if(d.status==='loading'){
-        setStatus('⏳ '+(d.progress||'模型加载中...'),'info');
-        genDualBtn.style.display='none';
-        setTimeout(checkStatus,3000);
-      }else if(d.status==='ready'){
-        setStatus('✅ '+d.model+' 加载完成','success');setTimeout(clearStatus,5000);
-        modelBadge.textContent=d.model+' ✓';
-        genDualBtn.style.display='inline-flex';
-      }
-      if(d.model==='VoxCPM-0.5B'){
-        voiceSectionLabel.textContent='';
-        voiceSection.style.display='none';
-        genScriptBtn.textContent='生成新闻摘要';
-      }else{
-        voiceSectionLabel.textContent='🎙️ 主播音色设置';
-        voiceSection.style.display='block';
-        voiceInputs.style.display='block';fileInputs.style.display='block';
-      }
-    }).catch(function(){});
-  };
-  checkStatus();
-  loadConfig();showEmpty();
+var cs=function(){
+fetch('/status').then(function(r){return r.json()}).then(function(d){
+state.ttsReady=d.status==='ready';state.model=d.model||'';mb.textContent=d.model||'?';
+if(d.status==='loading'){se('⏳ '+(d.progress||'加载中...'),'info');gd.style.display='none';setTimeout(cs,3000)}
+else if(d.status==='ready'){se('✅ '+d.model+' 已就绪','success');setTimeout(cl,5000);mb.textContent=d.model+' ✓';gd.style.display='inline-flex'}
+if(d.model==='VoxCPM-0.5B'){vsl.textContent='';vs.style.display='none';gs.textContent='生成新闻摘要'}
+else{vsl.textContent='🎙️ 主播音色设置';vs.style.display='block';document.getElementById('voxcpm2Config').style.display='block';document.getElementById('confirmVoiceBtn').style.display='inline-flex';gd.disabled=true}
+}).catch(function(){});
+};
+cs();lc();
 })();
-
-loadConfig();showEmpty();
-console.log('%c🎙 播客工坊 v2.0','font-size:16px;font-weight:bold;color:#2563eb;');
 })();
 </script>
 </body>
