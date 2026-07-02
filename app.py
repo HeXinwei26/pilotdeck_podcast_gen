@@ -364,7 +364,10 @@ def generate_summary_with_llm(article, api_key):
     except Exception as e: raise RuntimeError(f"DeepSeek 调用失败: {e}")
 
 
-TTS_CFG=1.5; TTS_STEPS=4; TTS_MAX_LEN=1024; TTS_MIN_LEN=1; TTS_RETRY=False
+# inference_timesteps 官方默认 10、建议 4-30；步数越多越干净自然。
+# 原值 4 是速度优先，会导致输出毛糙、底噪明显；提到 12 兼顾质量与速度。
+# retry_badcase 开启：音频异常偏短/偏长时自动重试，挡掉部分坏例。
+TTS_CFG=1.6; TTS_STEPS=12; TTS_MAX_LEN=1024; TTS_MIN_LEN=1; TTS_RETRY=True
 TTS_GEN_KWARGS = dict(cfg_value=TTS_CFG, inference_timesteps=TTS_STEPS, min_len=TTS_MIN_LEN, max_len=TTS_MAX_LEN, retry_badcase=TTS_RETRY)
 
 def _ensure_ref_wav(src_path, sample_rate):
