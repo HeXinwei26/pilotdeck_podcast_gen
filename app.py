@@ -219,8 +219,11 @@ VOXCPM_TTS_GUIDE = (
     "你撰写的文本将直接交给 VoxCPM 2 语音合成模型朗读。请遵循官方最佳实践：\n"
     "1. 写干净、自然的口语正文：像真人聊天那样，多用「对」「确实」「我觉得」「你看」"
     "这类口语词，句子短一些、一句一个意思，读起来更顺。\n"
-    "   适当多用语气助词让语气更自然亲切，例如句末的「啊」「呢」「吧」「嘛」「呀」「哦」「啦」，"
-    "以及「嗯」「诶」「哎」等口头语，但别每句都堆、避免生硬。\n"
+    "   要多用语气词，让对话更口语、更有真人感：大部分句子都应带上语气词，"
+    "尤其是句末的「啊」「呢」「吧」「嘛」「呀」「哦」「啦」「嘞」，"
+    "以及句首/句中的「嗯」「诶」「哎」「哈」「其实吧」「你别说」等口头语。"
+    "两位主播一来一往时，用「是吧」「对吧」「可不是嘛」这类接话词自然衔接。"
+    "整体宁可偏口语化，也不要写得像书面播报。\n"
     "2. 可适度使用「非语言标签」让语气更生动（点到为止，一句最多一个，全小写）：\n"
     "   - [laughing] 笑、[sigh] 叹气、[Uhm] 迟疑停顿、[Shh] 安静\n"
     "   - [Question-ah]/[Question-en] 疑问、[Surprise-wa] 惊讶\n"
@@ -240,6 +243,14 @@ DUAL_SCRIPT_SYSTEM = (
     "- 包含：开场寒暄与话题引入 → 围绕新闻重点的来回讨论（提问、回应、补充、追问）→ 收束总结与道别。\n"
     "- 两人观点要有互动感，不是各说各话。\n"
     "- 注意：[Host A]/[Host B] 是说话人标记，与下文提到的「非语言标签」是两回事，都要保留。\n\n"
+    "【语气词是硬性要求】几乎每一句都要自然地带上语气词或口头语，这是本任务最重要的风格要求，"
+    "不要写成书面播报腔。请严格模仿下面这段范例的口语密度（注意几乎每句都有语气词）：\n"
+    "[Host A] 哎，大家好啊，今天这条新闻我一看呐，还真挺有意思的。\n"
+    "[Host B] 是吧？我也觉得诶。你说这事儿吧，其实早就有苗头了，对不对。\n"
+    "[Host A] 对对对，可不是嘛。那你觉得啊，这里头最关键的点是啥呢？\n"
+    "[Host B] 嗯……我寻思吧，关键还是在这个数据上头哈，你别说，还真挺出乎意料的。\n"
+    "[Host A] 哈，那咱们今天就聊到这儿啦，谢谢各位收听啊，下期再见咯！\n"
+    "（范例仅示范语气词密度和口语感，实际内容请紧扣用户提供的新闻。）\n\n"
     + VOXCPM_TTS_GUIDE
 )
 
@@ -305,11 +316,13 @@ def normalize_for_tts(text):
 def generate_script_with_llm(article, api_key):
     title=article.get("title",""); d=(article.get("description")or""); c=(article.get("content")or"")
     s=article.get("source",{}).get("name",""); news=f"标题：{title}\n来源：{s}\n简介：{d}\n正文：{c}"
-    user_msg = "请根据以下新闻生成双人播客对话文案：\n\n" + news[:2000]
+    user_msg = ("请根据以下新闻生成双人播客对话文案。切记：几乎每一句都要带语气词或口头语"
+                "（啊/呢/吧/嘛/呀/哦/啦/嗯/诶/哈/是吧/可不是嘛等），口语感要拉满，别写成书面播报。\n\n"
+                + news[:2000])
     payload=json.dumps({"model":"deepseek-chat","messages":[
         {"role":"system","content":DUAL_SCRIPT_SYSTEM},
         {"role":"user","content":user_msg},
-    ],"temperature":0.8,"max_tokens":2048}).encode("utf-8")
+    ],"temperature":0.9,"max_tokens":2048}).encode("utf-8")
     req=urllib.request.Request(DEEPSEEK_URL,data=payload,headers={"Content-Type":"application/json","Authorization":f"Bearer {api_key}"},method="POST")
     try:
         with urllib.request.urlopen(req,timeout=120) as r: result=json.loads(r.read().decode("utf-8"))
