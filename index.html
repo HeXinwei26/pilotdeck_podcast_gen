@@ -268,12 +268,14 @@ if(uploadB&&uploadB.value==='upload'&&document.querySelector('#voxcpm2Config .ho
 fd.append('ref_b',document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio').files[0]);
 var res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
 }
+
 if(!res.ok){var ed;try{ed=await res.json()}catch(e){}throw new Error(ed?.error||'失败')}
 var blob=await res.blob();var url=URL.createObjectURL(blob);
 state.audioUrl=url;as.classList.add('visible');ap.src=url;ap.load();db.href=url;
 se('✅ 音频已生成','success');setTimeout(cl,3000);
 }catch(err){se('生成失败：'+err.message,'error')}
 state.isGeneratingDual=false;gd.disabled=false;gd.classList.remove('loading');gd.textContent='🎙️ 生成播客音频';
+
 });
 
 // VoxCPM2 UI 控制
