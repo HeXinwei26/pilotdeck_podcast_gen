@@ -135,25 +135,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 <div class="voice-section">
   <label class="section-label" id="voiceSectionLabel">🎙️ 主播音色设置</label>
   <div id="voxcpm2Config" style="display:none">
-    <div class="hint-box">💡 每个主播可从以下两种方式中选择一种：上传参考音频克隆音色，或输入音色描述让模型生成。选择后点击「确认音色设置」生效。</div>
+    <div class="hint-box">💡 上传参考音频克隆音色</div>
     <div style="display:flex;gap:8px">
     <div class="host-box" style="flex:1">
       <div class="host-title">主播 A</div>
-      <div class="toggle-group">
-        <label><input type="radio" name="modeA" value="upload" checked> 上传参考音频</label>
-        <label><input type="radio" name="modeA" value="desc"> 输入音色</label>
-      </div>
       <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" style="font-size:11px" /><button class="clear-audio" style="display:none;padding:3px 8px;border:1px solid #dc2626;color:#dc2626;border-radius:4px;font-size:10px;cursor:pointer;margin-left:6px">删除</button></div>
-      <div class="desc-area" style="display:none"><input class="voice-desc" type="text" placeholder="普通话 / 粤语中年男性..." style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;outline:none" /></div>
     </div>
     <div class="host-box">
       <div class="host-title">主播 B</div>
-      <div class="toggle-group">
-        <label><input type="radio" name="modeB" value="upload" checked> 上传参考音频</label>
-        <label><input type="radio" name="modeB" value="desc"> 输入音色</label>
-      </div>
       <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" style="font-size:11px" /><button class="clear-audio" style="display:none;padding:3px 8px;border:1px solid #dc2626;color:#dc2626;border-radius:4px;font-size:10px;cursor:pointer;margin-left:6px">删除</button></div>
-      <div class="desc-area" style="display:none"><input class="voice-desc" type="text" placeholder="温柔女声 / 东北话..." style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;outline:none" /></div>
     </div>
     </div>
   </div>
@@ -282,8 +272,8 @@ state.isGeneratingDual=false;gd.disabled=false;gd.classList.remove('loading');gd
 document.querySelectorAll('.host-box').forEach(function(box){
 var radios=box.querySelectorAll('[type=radio]');
 radios.forEach(function(r){r.addEventListener('change',function(){
-var up=box.querySelector('.upload-area'),de=box.querySelector('.desc-area');
-up.style.display=this.value==='upload'?'block':'none';de.style.display=this.value==='desc'?'block':'none';
+
+;
 })});
 var fi=box.querySelector('.ref-audio'),dl=box.querySelector('.clear-audio');
 if(fi&&dl){fi.addEventListener('change',function(){dl.style.display=this.files[0]?'inline-block':'none'});

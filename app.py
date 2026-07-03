@@ -109,6 +109,7 @@ def _clean(text):
     return re.sub(r'^[\s\u3000，。！？、；：""''【】《》\n\r]+','',text).strip()
 
 def generate_script(article):
+    import re
     if not article: return "[Host A] 暂无新闻内容。"
     title=article.get("title",""); desc=_clean(article.get("description","")or""); content=_clean(article.get("content","")or"")
     full=content if len(content)>len(desc) else desc
@@ -124,8 +125,7 @@ def generate_script(article):
         f"[Host B] {random.choice(_CLOSINGS)}",
         f"[Host A] {random.choice(_OUTRO_A)}",
         f"[Host B] {random.choice(_OUTRO_B)}",
-    ]
-    return normalize_for_tts("\n".join(lines))
+    ])
 
 DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -178,9 +178,12 @@ DUAL_SCRIPT_SYSTEM = (
 )
 
 SUMMARY_SYSTEM = (
-    "你是一位新闻播报文案撰写专家。请把用户提供的新闻总结成一段适合单人语音播报的"
-    "核心要点，二百字以内，简洁清晰、重点突出。\n\n"
-    + VOXCPM_TTS_GUIDE
+    "你是一位新闻总结和播报文案撰写专家。请把用户提供的新闻总结成一段适合单人语音播报的"
+    "核心要点，二百字以内。"
+    "要求："
+    "- 只输出客观的新闻要点总结，不要对话、不要评论"
+    "- 不要使用任何括号语气标签如 [Uhm] [laughing] 等"
+    "- 语言干净自然，适合直接朗读"
 )
 
 
@@ -266,14 +269,13 @@ def generate_summary(article):
     if not full: full=f"一条关于{_detect_topic(title)}的新闻"
     if len(full)>300: full=full[-300:]
     src=article.get("source",{}).get("name","媒体"); tp=_detect_topic(title)
-    text="\n\n".join([
+    text = "\n\n".join([
         f"各位听众朋友大家好，今天我们来聊一条关于{tp}的新闻动态",
         f"这条消息来自{src}，标题是{title}",
         f"根据报道，{full[:150]}",
-
         f"以上就是今天的新闻要点，感谢您的收听，我们下期再见。",
-    ]
-    text = "\n\n".join(lines)
+    ])
+    
     # 缩短标点停顿：句号、感叹号、问号、破折号改为逗号
     text = text.replace("！", "，").replace("？", "，").replace("——", "，").replace("；", "，")
     return normalize_for_tts(text)
@@ -563,7 +565,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         try: d=self._read_json()
         except: self._json_error("无效的 JSON",400); return
         if not d.get("article"): self._json_error("缺少 article",400); return
-        s=generate_script(d["article"]); b=json.dumps({"script":s},ensure_ascii=False).encode()
+        s=normalize_for_tts(generate_script(d["article"])); b=json.dumps({"script":s},ensure_ascii=False).encode()
         self.send_response(200); self.send_header("Content-Type","application/json"); self.send_header("Content-Length",str(len(b)))
         self.end_headers(); self.wfile.write(b)
 
