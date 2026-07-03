@@ -44,10 +44,13 @@ def get_available_ram_gb():
     try:
         import subprocess
         if sys.platform=="darwin":
-            r=subprocess.run(["vm_stat"],capture_output=True,text=True)
-            for l in r.stdout.split("\n"):
-                if "free" in l and "page" not in l: free_pages=int(l.split()[1].rstrip(".")); break
-            return free_pages*16384/1024**3
+            ps=subprocess.run(["sysctl","-n","hw.pagesize"],capture_output=True,text=True,timeout=5)
+            page_size=int(ps.stdout.strip())
+            vm=subprocess.run(["vm_stat"],capture_output=True,text=True,timeout=5)
+            for l in vm.stdout.split("\n"):
+                if l.strip().startswith("Pages free:"):
+                    free_pages=int(l.split(":")[1].strip().rstrip(".")); break
+            return free_pages*page_size/1024**3
     except: pass
     return 0.0
 

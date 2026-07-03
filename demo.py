@@ -5,30 +5,35 @@
 无需浏览器，直接合成语音。
 
 用法:
-  python demo.py
-  python demo.py --text "你好世界" --voice "粤语" --output hello.wav
+  python demo.py --text "你好世界"
+  python demo.py --text "今天天气不错" --output hello.wav
+  python demo.py --text "你好" --ref-audio reference.wav
   python demo.py --model-dir /path/to/models
 """
 
-import argparse
-import os
-import platform
-import struct
-import sys
-import time
+import argparse, os, platform, struct, sys, time, re
 from pathlib import Path
+
+
+def normalize_for_tts(text):
+    """清除 VoxCPM 音效标签和 emoji，保持文本干净"""
+    if not text: return text
+    text = re.sub(r'\[[^\]]*\]', '', text)  # 清除所有 [xxx] 标签
+    text = re.sub(r'[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F000-\U0001F0FF\u2190-\u21FF\u2B00-\u2BFF\uFE0F]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
 def main():
     parser = argparse.ArgumentParser(description="播客工坊 · 语音合成演示")
     parser.add_argument("--text", default="你好，欢迎使用播客工坊。这是一个基于 VoxCPM2 的语音合成演示。",
                         help="要合成的文本")
-    parser.add_argument("--voice", default="普通话",
-                        help="音色描述，如：普通话、粤语中年男性、四川话年轻女性")
     parser.add_argument("--output", default="demo_output.wav",
                         help="输出音频文件路径")
     parser.add_argument("--model-dir", default=None,
                         help="模型缓存目录（默认 ~/.cache/huggingface/hub）")
+    parser.add_argument("--ref-audio", default=None,
+                        help="参考音频路径，用于音色克隆（VoxCPM2 模式）")
     args = parser.parse_args()
 
     print("")
@@ -37,15 +42,16 @@ def main():
     print("  ╚══════════════════════════════════════╝")
     print(f"  OS: {platform.system()} {platform.release()}")
     print(f"  文本: {args.text}")
-    print(f"  音色: {args.voice}")
     print(f"  输出: {args.output}")
     print("")
+
+    # 清理文本
+    text = normalize_for_tts(args.text)
 
     # ── 加载模型 ──
     print("  ⏳ 正在加载 VoxCPM2 模型...")
     t0 = time.time()
 
-    # 环境变量（跨平台）
     os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
     os.environ.setdefault("TORCH_DYNAMO_DISABLE", "1")
 
@@ -70,18 +76,23 @@ def main():
         sys.exit(1)
 
     # ── 合成 ──
-    control = (args.voice or "").strip() or "默认"
-    final_text = f"({control}){args.text}" if control else args.text
-    print(f"  🎤 合成中... control={control}")
-
+    print(f"  🎤 合成中...")
+    gen_kw = dict(cfg_value=1.5, inference_timesteps=4, max_len=1024)
+    if args.ref_audio:
+        if os.path.exists(args.ref_audio):
+            import librosa, tempfile, wave, numpy as np
+            y, _ = librosa.load(args.ref_audio, sr=int(model.tts_model.sample_rate), mono=True)
+            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False); tmp.close()
+            with wave.open(tmp.name, "wb") as wf:
+                wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(int(model.tts_model.sample_rate))
+                wf.writeframes((np.clip(y, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+            gen_kw["reference_wav_path"] = tmp.name
+            print(f"  ✓ 参考音频已加载: {args.ref_audio}")
+        else:
+            print(f"  ⚠ 参考音频不存在: {args.ref_audio}，使用默认音色")
     t1 = time.time()
     try:
-        audio = model.generate(
-            text=final_text,
-            cfg_value=2.0,
-            inference_timesteps=10,
-            max_len=4096,
-        )
+        audio = model.generate(text=text, **gen_kw)
         print(f"  ✓ 合成完成（{time.time()-t1:.1f}s）")
     except Exception as e:
         print(f"  ❌ 合成失败: {e}")
@@ -89,44 +100,28 @@ def main():
 
     # ── 保存 WAV ──
     sr = int(model.tts_model.sample_rate)
+    if hasattr(audio, 'numpy'): audio = audio.numpy()
+    if hasattr(audio, 'reshape'): audio = audio.reshape(-1)
 
-    if hasattr(audio, 'numpy'):
-        audio = audio.numpy()
-    if hasattr(audio, 'tolist'):
-        audio = audio.tolist()
-    if hasattr(audio, 'reshape'):
-        audio = audio.reshape(-1)
+    # 低通滤波（同 app.py _lowpass）
+    import numpy as np
+    if len(audio) > 7:
+        w=7;k=np.ones(w,dtype=np.float32)/w
+        l=(w-1)//2;r=(w-1)-l
+        p=np.pad(audio,(l,r),mode='edge')
+        audio=np.convolve(p,k,mode='valid')
 
     n = len(audio)
-    buf = bytearray(44 + n * 2)
+    h = struct.pack("<4sI4s4sIHHIIHH4sI",
+                    b"RIFF", 36 + n * 2, b"WAVE", b"fmt ", 16, 1, 1,
+                    sr, sr * 2, 2, 16, b"data", n * 2)
+    pcm = (np.clip(audio, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
 
-    def w16(o, v): struct.pack_into("<h", buf, o, int(v))
-    def w32(o, v): struct.pack_into("<I", buf, o, v)
-
-    buf[0:4] = b"RIFF"
-    w32(4, 36 + n * 2)
-    buf[8:12] = b"WAVE"
-    buf[12:16] = b"fmt "
-    w32(16, 16)
-    w16(20, 1)
-    w16(22, 1)
-    w32(24, sr)
-    w32(28, sr * 2)
-    w16(32, 2)
-    w16(34, 16)
-    buf[36:40] = b"data"
-    w32(40, n * 2)
-
-    for i in range(n):
-        v = max(-1.0, min(1.0, float(audio[i]))) * 32767.0
-        w16(44 + i * 2, int(v))
-
-    Path(args.output).write_bytes(bytes(buf))
+    Path(args.output).write_bytes(h + pcm)
     size_mb = os.path.getsize(args.output) / 1024 / 1024
-
     print(f"  ✓ 已保存: {args.output}（{size_mb:.1f} MB，{n/sr:.1f}s）")
     print("")
-    print(f"  播放: {'start' if sys.platform == 'win32' else 'open'} {args.output}")
+    print(f"  播放: {'start' if sys.platform=='win32' else 'open'} {args.output}")
     print("  Web UI: python app.py")
 
 

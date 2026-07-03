@@ -252,10 +252,7 @@ var res=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/j
 var va=document.getElementById('voiceA')?.value||'',vb=document.getElementById('voiceB')?.value||'';
 var fd=new FormData();fd.append('script',sx.value);fd.append('voice_a',va);fd.append('voice_b',vb);
 var uploadA=document.querySelector('[name=modeA]:checked');var uploadB=document.querySelector('[name=modeB]:checked');
-if(uploadA&&uploadA.value==='upload'&&document.querySelector('#voxcpm2Config .host-box:first-child .ref-audio')?.files[0])
-fd.append('ref_a',document.querySelector('#voxcpm2Config .host-box:first-child .ref-audio').files[0]);
-if(uploadB&&uploadB.value==='upload'&&document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio')?.files[0])
-fd.append('ref_b',document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio').files[0]);
+var ra=document.querySelector('#voxcpm2Config .host-box:first-child .ref-audio');var rb=document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio');if(ra&&ra.files[0])fd.append('ref_a',ra.files[0]);if(rb&&rb.files[0])fd.append('ref_b',rb.files[0]);
 var res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
 }
 
