@@ -4,7 +4,7 @@
 =============================================
 """
 
-import argparse, gc, json, os, platform, random, re, ssl, struct, sys, threading
+import argparse, gc, json, os, platform, random, re, ssl, struct, sys, threading, time
 import traceback, urllib.request, urllib.error, tempfile, wave
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -47,10 +47,24 @@ def get_available_ram_gb():
             ps=subprocess.run(["sysctl","-n","hw.pagesize"],capture_output=True,text=True,timeout=5)
             page_size=int(ps.stdout.strip())
             vm=subprocess.run(["vm_stat"],capture_output=True,text=True,timeout=5)
+            # macOS 的"可用内存"不能只看 Pages free：系统会把大量空闲内存用作缓存，
+            # 计入 inactive/speculative/purgeable（可随时回收）。只算 free 会严重低估，
+            # 导致明明内存充足却误判为不足、自动降级到 lite 模型。
+            pages={}
             for l in vm.stdout.split("\n"):
-                if l.strip().startswith("Pages free:"):
-                    free_pages=int(l.split(":")[1].strip().rstrip(".")); break
-            return free_pages*page_size/1024**3
+                m=re.match(r"\s*(.+?):\s+(\d+)\.", l)
+                if m: pages[m.group(1).strip()]=int(m.group(2))
+            avail=(pages.get("Pages free",0)+pages.get("Pages inactive",0)
+                   +pages.get("Pages speculative",0)+pages.get("Pages purgeable",0))
+            if avail>0:
+                return avail*page_size/1024**3
+    except: pass
+    try:
+        # Linux 兜底：读 /proc/meminfo 的 MemAvailable（单位 kB）
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1])/1024**2
     except: pass
     return 0.0
 
@@ -393,7 +407,11 @@ def generate_tts(text, voice_desc):
     model,err=wait_for_model();
     if err: raise RuntimeError(err)
     print(f"  🎤 TTS... {TTS_STEPS} steps")
-    return _wav_encode(_lowpass(_tts_gen(model, text)), int(model.tts_model.sample_rate))
+    t0=time.perf_counter()                       # 生成开始
+    audio=_tts_gen(model, text)
+    t1=time.perf_counter()                        # 生成结束（推理耗时 = t1 - t0）
+    print(f"  ⏱ 推理耗时: {t1-t0:.2f}s")
+    return _wav_encode(_lowpass(audio), int(model.tts_model.sample_rate))
 
 def _segments(script):
     segs=[]
@@ -473,6 +491,7 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
     sep = np.zeros(int(sr * 0.18), dtype=np.float32)  # 说话人切换间的短停顿
     total = len(segs)
     prev_sp = None
+    t0=time.perf_counter()                            # 生成开始
 
     try:
         for idx,s in enumerate(segs,1):
@@ -505,6 +524,8 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
             full_audio.append(_fade_edges(raw, sr))
             prev_sp = sp
         if not full_audio: raise RuntimeError("没有可合成的内容")
+        t1=time.perf_counter()                        # 生成结束（推理耗时 = t1 - t0）
+        print(f"  ⏱ 推理耗时: {t1-t0:.2f}s（共 {total} 句）")
         combined = np.concatenate(full_audio) if len(full_audio) > 1 else full_audio[0]
         return _wav_encode(_lowpass(combined), sr)
     finally:
