@@ -4,8 +4,8 @@
 =============================================
 """
 
-import argparse, gc, json, os, platform, random, re, ssl, struct, sys, threading, time
-import traceback, urllib.request, urllib.error, tempfile, wave
+import argparse, atexit, gc, json, os, platform, random, re, ssl, struct, sys, threading, time
+import traceback, urllib.request, urllib.error, urllib.parse, tempfile, wave
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
@@ -22,7 +22,16 @@ PORT = 8080; MODEL_CACHE_DIR = None; FORCE_CPU = False
 MODEL_SIZE = "auto"; ACTIVE_MODEL_ID = "openbmb/VoxCPM2"; MODEL_LABEL = "VoxCPM2"
 _model = None; _model_lock = threading.Lock(); _model_loading = False
 _model_error = ""; _model_progress = ""; _model_ready = threading.Event()
+# 推理锁：ThreadingHTTPServer 每请求一线程，model.generate 不可并发（MPS/显存竞争），
+# 用独立锁串行化推理；_model_lock 只管加载。
+_infer_lock = threading.Lock()
 _ref_wav_cache = {}
+
+def _cleanup_ref_cache():
+    for p in _ref_wav_cache.values():
+        try: os.unlink(p)
+        except OSError: pass
+atexit.register(_cleanup_ref_cache)
 
 
 def get_available_ram_gb():
@@ -126,7 +135,6 @@ def _clean(text):
     return re.sub(r'^[\s\u3000，。！？、；：""''【】《》\n\r]+','',text).strip()
 
 def generate_script(article):
-    import re
     if not article: return "[Host A] 暂无新闻内容。"
     title=article.get("title",""); desc=_clean(article.get("description","")or""); content=_clean(article.get("content","")or"")
     full=content if len(content)>len(desc) else desc
@@ -318,11 +326,35 @@ def generate_summary_with_llm(article, api_key):
     except Exception as e: raise RuntimeError(f"DeepSeek 调用失败: {e}")
 
 
-# inference_timesteps 官方默认 10、建议 4-30；步数越多越干净自然。
-# 原值 4 是速度优先，会导致输出毛糙、底噪明显；提到 12 兼顾质量与速度。
-# retry_badcase 开启：音频异常偏短/偏长时自动重试，挡掉部分坏例。
-TTS_CFG=1.6; TTS_STEPS=12; TTS_MAX_LEN=1024; TTS_MIN_LEN=1; TTS_RETRY=True
-TTS_GEN_KWARGS = dict(cfg_value=TTS_CFG, inference_timesteps=TTS_STEPS, min_len=TTS_MIN_LEN, max_len=TTS_MAX_LEN, retry_badcase=TTS_RETRY)
+NEWSAPI_URL = "https://newsapi.org/v2/everything"
+
+def search_news(query, api_key):
+    """后端代理 NewsAPI：Key 只留服务端（走 X-Api-Key 头，不进浏览器 URL）。
+    返回 NewsAPI 原样 JSON dict，供前端沿用现有渲染逻辑。"""
+    if not query: raise RuntimeError("缺少搜索关键词")
+    if not api_key: raise RuntimeError("请先配置 NewsAPI Key")
+    url=f"{NEWSAPI_URL}?q={urllib.parse.quote(query)}&pageSize=3&sortBy=publishedAt"
+    req=urllib.request.Request(url,headers={"X-Api-Key":api_key},method="GET")
+    try:
+        with urllib.request.urlopen(req,timeout=30) as r: return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        b=e.read().decode("utf-8",errors="replace")[:300]
+        try: msg=json.loads(b).get("message",b)
+        except Exception: msg=b
+        raise RuntimeError(f"NewsAPI 错误 ({e.code}): {msg}")
+    except Exception as e: raise RuntimeError(f"NewsAPI 调用失败: {e}")
+
+
+# 推理参数（依据 VoxCPM 官方使用指南 / API 参考核实）：
+# - inference_timesteps 官方默认 10、建议 4-30；取默认 10 兼顾质量与速度。
+# - cfg_value 官方默认 2.0；长音频发闷/嗡鸣时官方建议降至 1.5-1.6 更稳，取 1.6。
+# - min_len 官方默认 2；过短输入（<1s 训练下限）易发虚，不再下调为 1。
+# - retry_badcase 开启：音频异常偏短/偏长时自动重试；官方默认最多重试 3 次，
+#   播客长文本场景把 retry_badcase_max_times 封顶为 1，避免长尾耗时（最坏 4x→2x）。
+# - normalize=True：官方数字/日期展开，兜底模板路径的裸数字朗读。
+TTS_CFG=1.6; TTS_STEPS=10; TTS_MAX_LEN=1024; TTS_MIN_LEN=2; TTS_RETRY=True
+TTS_GEN_KWARGS = dict(cfg_value=TTS_CFG, inference_timesteps=TTS_STEPS, min_len=TTS_MIN_LEN, max_len=TTS_MAX_LEN,
+                      retry_badcase=TTS_RETRY, retry_badcase_max_times=1, normalize=True)
 
 def _ensure_ref_wav(src_path,sr):
     src_path=str(src_path); cached=_ref_wav_cache.get(src_path)
@@ -348,19 +380,27 @@ def _supported_gen_kwargs(model,candidate):
     except: return dict(candidate)
 
 def _tts_gen(model,text,**kw):
-    import torch,numpy
+    import torch
     kw=_supported_gen_kwargs(model,kw)
-    with torch.inference_mode(): audio=model.generate(text=text,**kw)
-    gc.collect()
-    try:
-        if hasattr(torch,"mps") and torch.backends.mps.is_available(): torch.mps.empty_cache()
-    except: pass
+    # 推理串行化；GC/清缓存不在此处逐块做（固定开销随 chunk 数线性累积），
+    # 改为每次请求结束时 _release_memory() 统一做一次。
+    with _infer_lock:
+        with torch.inference_mode(): audio=model.generate(text=text,**kw)
     if hasattr(audio,'numpy'): audio=audio.numpy()
     if hasattr(audio,'reshape'): audio=audio.reshape(-1)
 
     # 注意：低通滤波不在此处逐块进行（会在每个 chunk 边界造成音量塌陷），
     # 改为所有片段拼接完成后用 _lowpass 整段处理一次。
     return audio
+
+
+def _release_memory():
+    """每次 TTS 请求结束后统一回收：全量 GC + MPS 缓存清理。"""
+    gc.collect()
+    try:
+        import torch
+        if hasattr(torch,"mps") and torch.backends.mps.is_available(): torch.mps.empty_cache()
+    except Exception: pass
 
 
 def _lowpass(audio, window=7):
@@ -403,12 +443,26 @@ def _save_anchor_wav(audio, sr):
         print(f"  ⚠ 音色锚点保存失败: {e}")
         return None
 
+def _sanitize_voice_desc(desc, max_len=60):
+    """清洗用户音色描述，用作 Control Instruction：去括号/换行/首尾空白、限长，
+    避免破坏 '(desc)text' 的括号结构。空输入返回空串。"""
+    if not desc: return ""
+    d = re.sub(r'[()（）\[\]【】\r\n]', ' ', str(desc))
+    d = re.sub(r'\s{2,}', ' ', d).strip()
+    return d[:max_len]
+
+
 def generate_tts(text, voice_desc):
     model,err=wait_for_model();
     if err: raise RuntimeError(err)
     print(f"  🎤 TTS... {TTS_STEPS} steps")
+    desc=_sanitize_voice_desc(voice_desc)
+    if desc: text=f"({desc}){text}"  # 无参考音频时用文字描述设计音色（Control Instruction）
     t0=time.perf_counter()                       # 生成开始
-    audio=_tts_gen(model, text)
+    try:
+        audio=_tts_gen(model, text, **TTS_GEN_KWARGS)
+    finally:
+        _release_memory()
     t1=time.perf_counter()                        # 生成结束（推理耗时 = t1 - t0）
     print(f"  ⏱ 推理耗时: {t1-t0:.2f}s")
     return _wav_encode(_lowpass(audio), int(model.tts_model.sample_rate))
@@ -462,6 +516,9 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
     - VoxCPM2(full): 用户为某主播上传参考音频时，该主播每一段都以此音频为参考克隆；
       未上传时，自动把该主播"首段生成音频"存为锚点，后续同主播段落以此为参考，
       尽量保持同一主播跨段音色一致（缓解默认音色逐段漂移）。
+    - voice_a/voice_b：音色文字描述（官方 Control Instruction），以 '(描述)正文' 前缀
+      拼进每个 chunk——无参考音频时用于文字设计音色，有参考音频时控制风格；
+      Hi-Fi 克隆段（prompt_wav+prompt_text 成对）官方明示忽略指令，不拼。
     - VoxCPM-0.5B(lite): 不支持参考音频，使用默认音色。
     片段拼接处加极短淡入淡出，说话人切换时插入短停顿；最后整段统一低通滤波。
     """
@@ -480,6 +537,7 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
     # 上传文件先归一化到模型采样率的单声道 wav（_ensure_ref_wav 兼容 mp3/wav 等）。
     ref_for = {"A": None, "B": None}
     ref_text = {"A": (text_a or "").strip(), "B": (text_b or "").strip()}
+    desc_for = {"A": _sanitize_voice_desc(voice_a), "B": _sanitize_voice_desc(voice_b)}  # Control Instruction
     auto_anchor = {"A": None, "B": None}  # 自动锚点 wav 路径（无用户参考时启用）
     is_full = (MODEL_SIZE == "full")
     if is_full:
@@ -500,6 +558,7 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
 
             k = dict(TTS_GEN_KWARGS)
             ref = ref_for.get(sp) or auto_anchor.get(sp)
+            hifi = False
             if ref:
                 # 存在参考音频（用户上传或自动锚点）：以该音频为参考生成
                 k["reference_wav_path"] = ref
@@ -507,10 +566,14 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
                     # 用户参考且提供文本时启用高保真克隆（reference + prompt 必须成对）
                     k["prompt_wav_path"] = ref
                     k["prompt_text"] = ref_text[sp]
-            src = "用户参考" if ref_for.get(sp) else ("自动锚点" if auto_anchor.get(sp) else "默认音色")
+                    hifi = True
+            # 音色描述前缀：Hi-Fi 段官方明示忽略 Control Instruction，不拼
+            desc = "" if hifi else desc_for.get(sp, "")
+            src = "用户参考" if ref_for.get(sp) else ("自动锚点" if auto_anchor.get(sp) else ("文字音色" if desc else "默认音色"))
             print(f"  [{idx}/{total}] Host {sp}  音色来源={src}")
             seg_audio = []
             for ci, chunk in enumerate(_split_long_text(t), 1):
+                if desc: chunk = f"({desc}){chunk}"
                 seg_audio.append(_tts_gen(model, chunk, **k))
             if not seg_audio: continue
             raw = np.concatenate(seg_audio) if len(seg_audio) > 1 else seg_audio[0]
@@ -532,7 +595,7 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
         for p in anchor_tmps:
             try: os.unlink(p)
             except: pass
-        gc.collect()
+        _release_memory()
 
 
 def _wav_encode(a,sr):
@@ -542,6 +605,31 @@ def _wav_encode(a,sr):
     pcm=(a*32767.0).astype("<i2").tobytes(); n=len(a)
     h=struct.pack("<4sI4s4sIHHIIHH4sI",b"RIFF",36+n*2,b"WAVE",b"fmt ",16,1,1,sr,sr*2,2,16,b"data",n*2)
     return h+pcm
+
+
+def _parse_multipart(body, content_type):
+    """极简 multipart/form-data 解析（替代 Py3.13 移除的 cgi.FieldStorage）。
+    返回 (fields: {name: str}, files: {name: bytes})。只处理本应用自己的表单，
+    不求覆盖 RFC 全部边角（如嵌套 multipart）。"""
+    fields, files = {}, {}
+    m = re.search(r'boundary="?([^";]+)"?', content_type)
+    if not m: return fields, files
+    boundary = b"--" + m.group(1).encode()
+    for part in body.split(boundary):
+        part = part.strip(b"\r\n")
+        if not part or part == b"--": continue
+        if b"\r\n\r\n" not in part: continue
+        raw_headers, data = part.split(b"\r\n\r\n", 1)
+        headers = raw_headers.decode("utf-8", errors="replace")
+        dm = re.search(r'Content-Disposition:[^\r\n]*?\bname="([^"]*)"', headers, re.I)
+        if not dm: continue
+        name = dm.group(1)
+        fm = re.search(r'\bfilename="([^"]*)"', headers, re.I)
+        if fm and fm.group(1):
+            files[name] = data
+        else:
+            fields[name] = data.decode("utf-8", errors="replace")
+    return fields, files
 
 
 class AppHandler(SimpleHTTPRequestHandler):
@@ -564,6 +652,7 @@ class AppHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         p=self.path.split("?")[0]
         if p=="/tts": self._handle_tts()
+        elif p=="/search_news": self._handle_search_news()
         elif p=="/generate_script": self._handle_generate_script()
         elif p=="/generate_script_v2": self._handle_generate_script_v2()
         elif p=="/generate_summary": self._handle_generate_summary()
@@ -575,6 +664,16 @@ class AppHandler(SimpleHTTPRequestHandler):
         if n > 5*1024*1024:  # JSON 请求体上限 5MB，防止超大 body 占满内存
             raise ValueError("请求体过大")
         return json.loads(self.rfile.read(n))
+
+    def _handle_search_news(self):
+        try: d=self._read_json()
+        except: self._json_error("无效的 JSON",400); return
+        q=(d.get("q")or"").strip(); key=(d.get("api_key")or"").strip()
+        try: result=search_news(q,key)
+        except RuntimeError as e: self._json_error(str(e),502); return
+        b=json.dumps(result,ensure_ascii=False).encode()
+        self.send_response(200); self.send_header("Content-Type","application/json"); self.send_header("Content-Length",str(len(b)))
+        self.end_headers(); self.wfile.write(b)
 
     def _handle_tts(self):
         try: d=self._read_json()
@@ -626,18 +725,19 @@ class AppHandler(SimpleHTTPRequestHandler):
     def _handle_dual_tts(self):
         ct=self.headers.get("Content-Type","")
         if "multipart" in ct:
-            import cgi
-            form=cgi.FieldStorage(fp=self.rfile,headers=self.headers,environ={"REQUEST_METHOD":"POST","CONTENT_TYPE":ct})
-            script=(form.getvalue("script")or"").strip(); va=(form.getvalue("voice_a")or"").strip(); vb=(form.getvalue("voice_b")or"").strip()
-            ta=(form.getvalue("text_a")or"").strip(); tb=(form.getvalue("text_b")or"").strip()
-            ref_a=form["ref_a"].file if "ref_a" in form and form["ref_a"].filename else None
-            ref_b=form["ref_b"].file if "ref_b" in form and form["ref_b"].filename else None
+            n=int(self.headers.get("Content-Length",0))
+            if n > 50*1024*1024:  # 上传体上限 50MB（两段参考音频 + 表单）
+                self._json_error("请求体过大",413); return
+            fields,files=_parse_multipart(self.rfile.read(n),ct)
+            script=(fields.get("script")or"").strip(); va=(fields.get("voice_a")or"").strip(); vb=(fields.get("voice_b")or"").strip()
+            ta=(fields.get("text_a")or"").strip(); tb=(fields.get("text_b")or"").strip()
             if not script: self._json_error("缺少 script",400); return
             rp=[]
-            for f,fn in [(ref_a,"a.wav"),(ref_b,"b.wav")]:
-                if f:
+            for key in ("ref_a","ref_b"):
+                data=files.get(key)
+                if data:
                     tmp=tempfile.NamedTemporaryFile(suffix=".wav",delete=False);tmp.close()
-                    with open(tmp.name,"wb") as out: out.write(f.read())
+                    with open(tmp.name,"wb") as out: out.write(data)
                     rp.append(tmp.name)
                 else: rp.append(None)
             try:
@@ -672,7 +772,6 @@ def main():
     if config_file.exists():
         try: sc=json.loads(config_file.read_text(encoding="utf-8"))
         except: pass
-    import argparse
     parser=argparse.ArgumentParser(description="播客工坊")
     parser.add_argument("--port",type=int,default=8080)
     parser.add_argument("--model-dir",type=str,default=sc.get("model_dir"))

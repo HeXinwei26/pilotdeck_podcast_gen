@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
 <style>
-:root{--white:#fff;--bg:#fafbfc;--primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#dbeafe;--primary-glow:rgba(37,99,235,.15);--text-primary:#111827;--text-secondary:#6b7280;--text-tertiary:#9ca3af;--border:#e5e7eb;--radius-md:12px;--radius-full:9999px;--font:'Inter',sans-serif;--transition:.25s cubic-bezier(.4,0,.2,1)}
+:root{--white:#fff;--bg:#fafbfc;--primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#dbeafe;--primary-ghost:rgba(37,99,235,.06);--primary-glow:rgba(37,99,235,.15);--text-primary:#111827;--text-secondary:#6b7280;--text-tertiary:#9ca3af;--border:#e5e7eb;--radius-md:12px;--radius-full:9999px;--font:'Inter',sans-serif;--transition:.25s cubic-bezier(.4,0,.2,1)}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line-height:1.5}
@@ -30,6 +30,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 .results-area::-webkit-scrollbar{width:4px}
 .results-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;color:var(--text-tertiary);height:100%}
+.empty-state svg{width:44px;height:44px;margin-bottom:10px}
+.empty-state h3{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text-secondary)}
+.empty-state p{font-size:12px}
 .news-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:10px}
 .news-card.selected{border-color:var(--primary);background:#f8faff;box-shadow:0 0 0 1px var(--primary)}
 .news-card .source{font-size:11px;font-weight:500;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px}
@@ -40,12 +43,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 .news-card .select-btn{padding:5px 16px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);border-radius:var(--radius-full);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
 .news-card .select-btn.selected{background:var(--primary);color:#fff}
 .panel-right{flex:1;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-.panel-right-inner{padding:24px 28px;display:flex;flex-direction:column;height:100%;overflow:hidden}
+.panel-right-inner{padding:24px 28px;display:flex;flex-direction:column;height:100%;overflow:hidden;max-width:900px;width:100%;margin:0 auto}
 .right-header{flex-shrink:0;margin-bottom:16px}
 .right-header h2{font-size:20px;font-weight:600}
 .right-header h2 span{color:var(--primary)}
-.script-section{flex-shrink:0;margin-bottom:12px}
-.script-box{height:180px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;line-height:1.7;font-family:monospace;white-space:pre-wrap;width:100%;outline:none;resize:none}
+.script-section{flex:1;display:flex;flex-direction:column;min-height:0;margin-bottom:12px}
+.script-box{flex:1;min-height:140px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;font-size:13px;line-height:1.7;font-family:monospace;white-space:pre-wrap;width:100%;outline:none;resize:none}
 .script-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .script-gen-btn,.script-dl-btn{padding:7px 18px;border-radius:var(--radius-md);font-size:12px;font-weight:500;cursor:pointer}
 .script-gen-btn{border:none;background:var(--primary);color:#fff}
@@ -76,6 +79,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 .status-msg.success{background:#f0fdf4;color:#16a34a}
 .config-section{margin-top:auto;flex-shrink:0;padding-top:12px;border-top:1px solid var(--border)}
 .config-toggle{background:none;border:none;font-size:11px;color:var(--text-tertiary);cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 0}
+.config-toggle svg{width:12px;height:12px;transition:transform .2s}
+.search-btn svg{width:16px;height:16px}
+.download-btn svg{width:14px;height:14px}
 .config-toggle.open svg{transform:rotate(180deg)}
 .config-body{margin-top:8px;display:none;flex-direction:column;gap:8px}
 .config-body.open{display:flex}
@@ -84,7 +90,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 .config-field input{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px}
 .config-field .save-btn{padding:6px 12px;border:none;background:var(--primary);color:#fff;border-radius:6px;font-size:11px;cursor:pointer}
 .config-hint{font-size:10px;color:var(--text-tertiary);line-height:1.4}
-@media(max-width:820px){.app{flex-direction:column}.panel-left,.panel-right{width:100%;min-width:0;height:auto}}
+.subtitle{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.loading-state,.error-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;gap:10px;color:var(--text-tertiary)}
+.error-state p{font-size:13px;color:#dc2626}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+.retry-btn{padding:6px 16px;border:1px solid var(--border);background:var(--white);border-radius:var(--radius-full);font-size:12px;cursor:pointer;color:var(--text-secondary)}
+.retry-btn:hover{border-color:var(--primary);color:var(--primary)}
+.host-row{display:flex;gap:8px}
+.host-box{flex:1;min-width:0}
+.voice-desc{width:100%;padding:6px 8px;margin-bottom:6px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);outline:none}
+.voice-desc:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-glow)}
+.ref-audio{font-size:11px;max-width:100%}
+.upload-area{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.clear-audio{padding:3px 8px;border:1px solid #dc2626;color:#dc2626;background:transparent;border-radius:4px;font-size:10px;cursor:pointer}
+.audio-label{font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px}
+.news-card{animation:fadeIn .3s ease both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
@@ -105,7 +126,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 <div class="results-area" id="resultsArea">
   <div class="empty-state" id="emptyState"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><h3>输入关键词开始探索</h3><p>获取全球最新新闻</p></div>
   <div class="loading-state" id="loadingState" style="display:none"><div class="spinner"></div><p style="font-size:12px">正在搜索...</p></div>
-  <div class="error-state" id="errorState" style="display:none"><p id="errorMsg"></p><button class="retry-btn" id="retryBtn" style="padding:6px 16px;border:1px solid var(--border);background:var(--white);border-radius:999px;font-size:12px;cursor:pointer">重新搜索</button></div>
+  <div class="error-state" id="errorState" style="display:none"><p id="errorMsg"></p><button class="retry-btn" id="retryBtn">重新搜索</button></div>
   <div id="cardsContainer" style="display:none"></div>
 </div>
 <div class="config-section">
@@ -128,22 +149,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
     <button class="script-gen-btn" id="genScriptBtn" disabled>生成播客文案</button>
     <a class="script-dl-btn" id="dlScriptBtn" style="display:none" download="podcast_script.txt">📄 下载 .txt</a>
     <button class="gen-btn" id="genDualBtn" disabled style="display:none">🎙️ 生成播客音频</button>
-    <button class="gen-btn" id="confirmVoiceBtn" style="display:none;background:var(--primary-dark)">✅ 确认音色</button>
   </div>
 </div>
 
 <div class="voice-section">
   <label class="section-label" id="voiceSectionLabel">🎙️ 主播音色设置</label>
   <div id="voxcpm2Config" style="display:none">
-    <div class="hint-box">💡 上传参考音频克隆音色</div>
-    <div style="display:flex;gap:8px">
-    <div class="host-box" style="flex:1">
+    <div class="hint-box">💡 音色设置：<b>不上传</b>参考音频时，可用「音色描述」文字生成音色；<b>上传</b>参考音频则克隆该音色，描述用于微调风格（语速/情绪）。</div>
+    <div class="host-row">
+    <div class="host-box">
       <div class="host-title">主播 A</div>
-      <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" style="font-size:11px" /><button class="clear-audio" style="display:none;padding:3px 8px;border:1px solid #dc2626;color:#dc2626;border-radius:4px;font-size:10px;cursor:pointer;margin-left:6px">删除</button></div>
+      <input type="text" class="voice-desc" placeholder="音色描述（可选）：低沉磁性的中年男主播" />
+      <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" /><button class="clear-audio" style="display:none">删除</button></div>
     </div>
     <div class="host-box">
       <div class="host-title">主播 B</div>
-      <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" style="font-size:11px" /><button class="clear-audio" style="display:none;padding:3px 8px;border:1px solid #dc2626;color:#dc2626;border-radius:4px;font-size:10px;cursor:pointer;margin-left:6px">删除</button></div>
+      <input type="text" class="voice-desc" placeholder="音色描述（可选）：温柔亲切的年轻女主播" />
+      <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" /><button class="clear-audio" style="display:none">删除</button></div>
     </div>
     </div>
   </div>
@@ -185,8 +207,9 @@ var key=state.apiKeys.newsapi;
 if(!key){es.style.display='flex';ers.style.display='none';em.textContent='请先配置 NewsAPI Key';return}
 state.isSearching=true;sb.style.pointerEvents='none';es.style.display='none';ls.style.display='flex';ers.style.display='none';cc.style.display='none';
 try{
-var res=await fetch('https://newsapi.org/v2/everything?q='+encodeURIComponent(topic.trim())+'&pageSize=3&sortBy=publishedAt&apiKey='+key);
+var res=await fetch('/search_news',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:topic.trim(),api_key:key})});
 var data=await res.json();
+if(!res.ok)throw new Error(data.error||'搜索失败');
 if(data.status==='error')throw new Error(data.message||'错误');
 if(!data.articles||!data.articles.length){em.textContent='未找到相关新闻';es.style.display='none';ls.style.display='none';ers.style.display='flex';state.searchResults=[];return}
 state.searchResults=data.articles.slice(0,3);
@@ -249,10 +272,11 @@ try{
 if(state.model==='VoxCPM-0.5B'){
 var res=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:sx.value,voice_desc:''})});
 }else{
-var va=document.getElementById('voiceA')?.value||'',vb=document.getElementById('voiceB')?.value||'';
+var boxes=document.querySelectorAll('#voxcpm2Config .host-box');
+var va=boxes[0]?.querySelector('.voice-desc')?.value.trim()||'',vb=boxes[1]?.querySelector('.voice-desc')?.value.trim()||'';
 var fd=new FormData();fd.append('script',sx.value);fd.append('voice_a',va);fd.append('voice_b',vb);
-var uploadA=document.querySelector('[name=modeA]:checked');var uploadB=document.querySelector('[name=modeB]:checked');
-var ra=document.querySelector('#voxcpm2Config .host-box:first-child .ref-audio');var rb=document.querySelector('#voxcpm2Config .host-box:last-child .ref-audio');if(ra&&ra.files[0])fd.append('ref_a',ra.files[0]);if(rb&&rb.files[0])fd.append('ref_b',rb.files[0]);
+var ra=boxes[0]?.querySelector('.ref-audio'),rb=boxes[1]?.querySelector('.ref-audio');
+if(ra&&ra.files[0])fd.append('ref_a',ra.files[0]);if(rb&&rb.files[0])fd.append('ref_b',rb.files[0]);
 var res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
 }
 
@@ -265,22 +289,11 @@ state.isGeneratingDual=false;gd.disabled=false;gd.classList.remove('loading');gd
 
 });
 
-// VoxCPM2 UI 控制
+// VoxCPM2 UI 控制：参考音频选择/删除
 document.querySelectorAll('.host-box').forEach(function(box){
-var radios=box.querySelectorAll('[type=radio]');
-radios.forEach(function(r){r.addEventListener('change',function(){
-
-;
-})});
 var fi=box.querySelector('.ref-audio'),dl=box.querySelector('.clear-audio');
 if(fi&&dl){fi.addEventListener('change',function(){dl.style.display=this.files[0]?'inline-block':'none'});
 dl.addEventListener('click',function(){fi.value='';dl.style.display='none'})}
-});
-document.getElementById('confirmVoiceBtn')?.addEventListener('click',function(){
-var va=document.querySelector('#voxcpm2Config .host-box:first-child .voice-desc')?.value||'';
-var vb=document.querySelector('#voxcpm2Config .host-box:last-child .voice-desc')?.value||'';
-document.getElementById('voiceA').value=va;document.getElementById('voiceB').value=vb;
-gd.disabled=true;se('✅ 音色已确认，可生成音频','success');gd.disabled=false;setTimeout(cl,3000);
 });
 
 (function init(){
@@ -290,7 +303,7 @@ state.ttsReady=d.status==='ready';state.model=d.model||'';mb.textContent=d.model
 if(d.status==='loading'){se('⏳ '+(d.progress||'加载中...'),'info');gd.style.display='none';setTimeout(cs,3000)}
 else if(d.status==='ready'){se('✅ '+d.model+' 已就绪','success');setTimeout(cl,5000);mb.textContent=d.model+' ✓';gd.style.display='inline-flex'}
 if(d.model==='VoxCPM-0.5B'){vsl.textContent='';vs.style.display='none';gs.textContent='生成新闻摘要'}
-else{vsl.textContent='🎙️ 主播音色设置';vs.style.display='block';document.getElementById('voxcpm2Config').style.display='block';document.getElementById('confirmVoiceBtn').style.display='inline-flex';gd.disabled=true}
+else{vsl.textContent='🎙️ 主播音色设置';vs.style.display='block';document.getElementById('voxcpm2Config').style.display='block'}
 }).catch(function(){});
 };
 cs();lc();
