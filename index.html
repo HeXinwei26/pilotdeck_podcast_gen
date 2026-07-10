@@ -98,8 +98,6 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 .retry-btn:hover{border-color:var(--primary);color:var(--primary)}
 .host-row{display:flex;gap:8px}
 .host-box{flex:1;min-width:0}
-.voice-desc{width:100%;padding:6px 8px;margin-bottom:6px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:var(--font);outline:none}
-.voice-desc:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-glow)}
 .ref-audio{font-size:11px;max-width:100%}
 .upload-area{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .clear-audio{padding:3px 8px;border:1px solid #dc2626;color:#dc2626;background:transparent;border-radius:4px;font-size:10px;cursor:pointer}
@@ -140,31 +138,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-primary);line
 </div></div>
 
 <div class="panel-right"><div class="panel-right-inner">
-<div class="right-header"><h2>播客 <span>工坊</span></h2><div class="subtitle">生成双人播客文案 → 合成多音色音频</div></div>
+<div class="right-header"><h2>播客 <span>工坊</span></h2><div class="subtitle">生成双人播客文案 合成多音色音频</div></div>
 
 <div class="script-section">
-  <label class="section-label">🎯 播客文案</label>
+  <label class="section-label">播客文案</label>
   <textarea class="script-box" id="scriptBox" placeholder="先在左侧选择新闻，点击「生成播客文案」后可直接编辑修改"></textarea>
   <div class="script-actions">
     <button class="script-gen-btn" id="genScriptBtn" disabled>生成播客文案</button>
-    <a class="script-dl-btn" id="dlScriptBtn" style="display:none" download="podcast_script.txt">📄 下载 .txt</a>
-    <button class="gen-btn" id="genDualBtn" disabled style="display:none">🎙️ 生成播客音频</button>
+    <a class="script-dl-btn" id="dlScriptBtn" style="display:none" download="podcast_script.txt">下载 .txt</a>
+    <button class="gen-btn" id="genDualBtn" disabled style="display:none">生成播客音频</button>
   </div>
 </div>
 
 <div class="voice-section">
-  <label class="section-label" id="voiceSectionLabel">🎙️ 主播音色设置</label>
+  <label class="section-label" id="voiceSectionLabel">主播音色设置</label>
   <div id="voxcpm2Config" style="display:none">
-    <div class="hint-box">💡 音色设置：<b>不上传</b>参考音频时，可用「音色描述」文字生成音色；<b>上传</b>参考音频则克隆该音色，描述用于微调风格（语速/情绪）。</div>
+    <div class="hint-box">音色设置：<b>上传参考音频</b>（5-30秒干净人声）用于克隆主播音色。</div>
     <div class="host-row">
     <div class="host-box">
       <div class="host-title">主播 A</div>
-      <input type="text" class="voice-desc" placeholder="音色描述（可选）：低沉磁性的中年男主播" />
       <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" /><button class="clear-audio" style="display:none">删除</button></div>
     </div>
     <div class="host-box">
       <div class="host-title">主播 B</div>
-      <input type="text" class="voice-desc" placeholder="音色描述（可选）：温柔亲切的年轻女主播" />
       <div class="upload-area"><input type="file" class="ref-audio" accept="audio/*" /><button class="clear-audio" style="display:none">删除</button></div>
     </div>
     </div>
@@ -217,7 +213,7 @@ cc.innerHTML='';
 state.searchResults.forEach(function(a,i){
 var c=document.createElement('div');c.className='news-card';c.style.animationDelay=(i*0.1)+'s';
 var src=a.source?.name||'',t=a.title||'',d=a.description?((a.description.length>120?a.description.slice(0,120)+'...':a.description)):'',u=a.url||'',sel=state.selectedNews===a;
-c.innerHTML='<div class="source">'+esc(src)+'</div><h4>'+esc(t)+'</h4>'+(d?'<div class="desc">'+esc(d)+'</div>':'')+'<div class="card-footer">'+(u?'<a class="news-link" href="'+esc(u)+'" target="_blank">🔗 原文</a>':'<span></span>')+'<button class="select-btn'+(sel?' selected':'')+'">'+(sel?'已选中':'选这条')+'</button></div>';
+c.innerHTML='<div class="source">'+esc(src)+'</div><h4>'+esc(t)+'</h4>'+(d?'<div class="desc">'+esc(d)+'</div>':'')+'<div class="card-footer">'+(u?'<a class="news-link" href="'+esc(u)+'" target="_blank">原文</a>':'<span></span>')+'<button class="select-btn'+(sel?' selected':'')+'">'+(sel?'已选中':'选这条')+'</button></div>';
 c.querySelector('.select-btn').addEventListener('click',function(e){e.stopPropagation();
 state.selectedNews=a;state.podcastScript=null;ha();cl();sx.value='';sx.placeholder='已选择';ds.style.display='none';gs.disabled=false;gd.disabled=true;
 cc.querySelectorAll('.select-btn').forEach(function(x,i){var s2=state.selectedNews===state.searchResults[i];x.textContent=s2?'已选中':'选这条';x.classList.toggle('selected',s2)});
@@ -237,26 +233,26 @@ if(state.isGeneratingScript||!state.selectedNews)return;
 state.isGeneratingScript=true;gs.disabled=true;
 if(state.model==='VoxCPM-0.5B'){
 gs.textContent='生成中...';var hasAi=!!state.apiKeys.deepseek;
-if(hasAi)se('🤖 DeepSeek 总结...','info');
+if(hasAi)se('DeepSeek 总结...','info');
 try{
 var res=await fetch('/generate_summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({article:state.selectedNews,api_key:state.apiKeys.deepseek})});
 var data=await res.json();
 if(!res.ok)throw new Error(data.error||'失败');
 sx.value=data.script;sx.placeholder='';
 ds.style.display='inline-flex';ds.href='data:text/plain;charset=utf-8,'+encodeURIComponent(data.script);
-gd.disabled=false;se('✅ 摘要已生成','success');setTimeout(cl,3000);
+gd.disabled=false;se('摘要已生成','success');setTimeout(cl,3000);
 }catch(err){se('生成失败：'+err.message,'error')}
 state.isGeneratingScript=false;gs.disabled=false;gs.textContent='生成新闻摘要';return;
 }
 var hasAi=!!state.apiKeys.deepseek;gs.textContent=hasAi?'AI 生成中...':'生成中...';
-if(hasAi)se('🤖 DeepSeek 生成对话...','info');
+if(hasAi)se('DeepSeek 生成对话...','info');
 try{
 var res=await fetch('/generate_script_v2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({article:state.selectedNews,api_key:state.apiKeys.deepseek})});
 var data=await res.json();
 if(!res.ok)throw new Error(data.error||'失败');
 sx.value=data.script;sx.placeholder='';
 ds.style.display='inline-flex';ds.href='data:text/plain;charset=utf-8,'+encodeURIComponent(data.script);
-gd.disabled=false;se('✅ 文案已生成','success');setTimeout(cl,3000);
+gd.disabled=false;se('文案已生成','success');setTimeout(cl,3000);
 }catch(err){se('生成失败：'+err.message,'error')}
 state.isGeneratingScript=false;gs.disabled=false;gs.textContent=state.model==='VoxCPM-0.5B'?'生成新闻摘要':'生成播客文案';
 });
@@ -266,15 +262,14 @@ ds.addEventListener('click',function(){this.href='data:text/plain;charset=utf-8,
 gd.addEventListener('click',async function(){
 if(state.isGeneratingDual||!sx.value)return;
 state.isGeneratingDual=true;gd.disabled=true;gd.classList.add('loading');gd.textContent='合成中...';ha();
-for(var t=0;t<200;t++){try{var sr=await fetch('/status');var st=await sr.json();if(st.status==='ready')break;se('⏳ 模型加载中...','info')}catch(e){}await new Promise(function(r){setTimeout(r,3000)})}
-se('🎤 合成语音...','info');
+for(var t=0;t<200;t++){try{var sr=await fetch('/status');var st=await sr.json();if(st.status==='ready')break;se('模型加载中...','info')}catch(e){}await new Promise(function(r){setTimeout(r,3000)})}
+se('合成语音...','info');
 try{
 if(state.model==='VoxCPM-0.5B'){
 var res=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:sx.value,voice_desc:''})});
 }else{
 var boxes=document.querySelectorAll('#voxcpm2Config .host-box');
-var va=boxes[0]?.querySelector('.voice-desc')?.value.trim()||'',vb=boxes[1]?.querySelector('.voice-desc')?.value.trim()||'';
-var fd=new FormData();fd.append('script',sx.value);fd.append('voice_a',va);fd.append('voice_b',vb);
+var fd=new FormData();fd.append('script',sx.value);fd.append('voice_a','');fd.append('voice_b','');
 var ra=boxes[0]?.querySelector('.ref-audio'),rb=boxes[1]?.querySelector('.ref-audio');
 if(ra&&ra.files[0])fd.append('ref_a',ra.files[0]);if(rb&&rb.files[0])fd.append('ref_b',rb.files[0]);
 var res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
@@ -283,9 +278,9 @@ var res=await fetch('/generate_dual_tts',{method:'POST',body:fd});
 if(!res.ok){var ed;try{ed=await res.json()}catch(e){}throw new Error(ed?.error||'失败')}
 var blob=await res.blob();var url=URL.createObjectURL(blob);
 state.audioUrl=url;as.classList.add('visible');ap.src=url;ap.load();db.href=url;
-se('✅ 音频已生成','success');setTimeout(cl,3000);
+se('音频已生成','success');setTimeout(cl,3000);
 }catch(err){se('生成失败：'+err.message,'error')}
-state.isGeneratingDual=false;gd.disabled=false;gd.classList.remove('loading');gd.textContent='🎙️ 生成播客音频';
+state.isGeneratingDual=false;gd.disabled=false;gd.classList.remove('loading');gd.textContent='生成播客音频';
 
 });
 
@@ -300,10 +295,10 @@ dl.addEventListener('click',function(){fi.value='';dl.style.display='none'})}
 var cs=function(){
 fetch('/status').then(function(r){return r.json()}).then(function(d){
 state.ttsReady=d.status==='ready';state.model=d.model||'';mb.textContent=d.model||'?';
-if(d.status==='loading'){se('⏳ '+(d.progress||'加载中...'),'info');gd.style.display='none';setTimeout(cs,3000)}
-else if(d.status==='ready'){se('✅ '+d.model+' 已就绪','success');setTimeout(cl,5000);mb.textContent=d.model+' ✓';gd.style.display='inline-flex'}
+if(d.status==='loading'){se(''+(d.progress||'加载中...'),'info');gd.style.display='none';setTimeout(cs,3000)}
+else if(d.status==='ready'){se(''+d.model+' 已就绪','success');setTimeout(cl,5000);mb.textContent=d.model+' 已就绪';gd.style.display='inline-flex'}
 if(d.model==='VoxCPM-0.5B'){vsl.textContent='';vs.style.display='none';gs.textContent='生成新闻摘要'}
-else{vsl.textContent='🎙️ 主播音色设置';vs.style.display='block';document.getElementById('voxcpm2Config').style.display='block'}
+else{vsl.textContent='主播音色设置';vs.style.display='block';document.getElementById('voxcpm2Config').style.display='block'}
 }).catch(function(){});
 };
 cs();lc();

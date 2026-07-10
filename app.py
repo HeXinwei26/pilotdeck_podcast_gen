@@ -513,12 +513,7 @@ def _split_long_text(text, max_chars=150):
 
 def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="", text_b=""):
     """双人 TTS：Host A / Host B 各用一份参考音频锚定音色。
-    - VoxCPM2(full): 用户为某主播上传参考音频时，该主播每一段都以此音频为参考克隆；
-      未上传时，自动把该主播"首段生成音频"存为锚点，后续同主播段落以此为参考，
-      尽量保持同一主播跨段音色一致（缓解默认音色逐段漂移）。
-    - voice_a/voice_b：音色文字描述（官方 Control Instruction），以 '(描述)正文' 前缀
-      拼进每个 chunk——无参考音频时用于文字设计音色，有参考音频时控制风格；
-      Hi-Fi 克隆段（prompt_wav+prompt_text 成对）官方明示忽略指令，不拼。
+    - VoxCPM2(full): 用户为某主播上传参考音频时，该主播每一段都以此音频为参考克隆。
     - VoxCPM-0.5B(lite): 不支持参考音频，使用默认音色。
     片段拼接处加极短淡入淡出，说话人切换时插入短停顿；最后整段统一低通滤波。
     """
@@ -533,7 +528,7 @@ def generate_dual_tts(script, voice_a, voice_b, ref_a=None, ref_b=None, text_a="
     full_audio = []
     anchor_tmps = []  # 自动生成的锚点临时文件，结束时清理
 
-    # 每个主播的参考音频：优先用用户上传；未上传则用首段生成音频做锚点。
+    # 每个主播的参考音频：用户上传。
     # 上传文件先归一化到模型采样率的单声道 wav（_ensure_ref_wav 兼容 mp3/wav 等）。
     ref_for = {"A": None, "B": None}
     ref_text = {"A": (text_a or "").strip(), "B": (text_b or "").strip()}
